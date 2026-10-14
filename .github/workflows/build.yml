@@ -1,103 +1,143 @@
-name: Build
+name: Publish image
 
 on:
   workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (for example 1.0.0); publishes this tag and latest to GHCR'
+        required: true
+        type: string
+
+permissions:
+  contents: read
 
 concurrency:
-  group: build
+  group: publish-image
   cancel-in-progress: false
 
 jobs:
-  shellcheck:
-    name: Check
-    uses: ./.github/workflows/check.yml
-  build:
-    name: Build
-    needs: shellcheck
-    runs-on: ubuntu-latest
-    permissions:
-      actions: write
-      packages: write
-      contents: read
+  version:
+    name: Validate release version
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      image: ${{ steps.version.outputs.image }}
     steps:
-      -
-        name: Checkout
-        uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
-      -
-        name: Docker metadata
-        id: meta
-        uses: docker/metadata-action@v6
-        with:
-          context: git
-          images: |
-            ${{ secrets.DOCKERHUB_REPO }}
-            ghcr.io/${{ github.repository }}
-          tags: |
-            type=raw,value=latest,priority=100
-            type=raw,value=${{ vars.MAJOR }}.${{ vars.MINOR }}
-          labels: |
-            org.opencontainers.image.title=${{ vars.NAME }}
+      - name: Validate version and default branch
+        id: version
         env:
-          DOCKER_METADATA_ANNOTATIONS_LEVELS: manifest,index
-      - 
-        name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v4
-      -
-        name: Login into Docker Hub
-        uses: docker/login-action@v4
+          RELEASE_VERSION: ${{ inputs.version }}
+          REPOSITORY: ${{ github.repository }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          [[ "$GITHUB_REF" == "refs/heads/$DEFAULT_BRANCH" ]] || { echo 'Publish from the default branch only.' >&2; exit 1; }
+          [[ "$RELEASE_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo 'Version must have the form 1.2.3.' >&2; exit 1; }
+          echo "version=$RELEASE_VERSION" >> "$GITHUB_OUTPUT"
+          echo "image=ghcr.io/${REPOSITORY,,}" >> "$GITHUB_OUTPUT"
+  checks:
+    needs: version
+    uses: ./.github/workflows/test.yml
+  publish:
+    name: Publish (${{ matrix.arch }})
+    needs: [version, checks]
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            arch: amd64
+          - runner: ubuntu-24.04-arm
+            arch: arm64
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
-      -
-        name: Login to GitHub Container Registry
-        uses: docker/login-action@v4
+          persist-credentials: false
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4
+      - name: Login to GHCR
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      -
-        name: Build Docker image
-        uses: docker/build-push-action@v7
+      - name: Build versioned image by digest
+        id: build
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
         with:
           context: .
-          push: true
-          provenance: false
-          platforms: linux/amd64,linux/arm64
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          annotations: ${{ steps.meta.outputs.annotations }}
-          build-args: |
-            VERSION_ARG=${{ steps.meta.outputs.version }}
-      -
-        name: Create a release
-        uses: action-pack/github-release@v2
+          platforms: linux/${{ matrix.arch }}
+          build-args: VERSION_ARG=${{ needs.version.outputs.version }}
+          outputs: type=image,name=${{ needs.version.outputs.image }},push-by-digest=true,name-canonical=true,push=true
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.version=${{ needs.version.outputs.version }}
+          cache-from: type=gha,scope=image-${{ matrix.arch }}
+          cache-to: type=gha,mode=max,scope=image-${{ matrix.arch }}
+      - name: Verify published image
+        env:
+          IMAGE: ${{ needs.version.outputs.image }}
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          docker pull "$IMAGE@$DIGEST"
+          docker tag "$IMAGE@$DIGEST" virtual-dsm:release
+          docker run --rm --entrypoint qemu-system-aarch64 virtual-dsm:release --version
+          docker run --rm --entrypoint qemu-system-x86_64 virtual-dsm:release --version
+          bash tests/production-x86-command.sh virtual-dsm:release
+      - name: Export digest
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/digests"
+          touch "$RUNNER_TEMP/digests/${DIGEST#sha256:}"
+      - name: Upload digest
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
-          tag: "v${{ steps.meta.outputs.version }}"
-          title: "v${{ steps.meta.outputs.version }}"
-          token: ${{ secrets.REPO_ACCESS_TOKEN }}
-      -
-        name: Increment version variable
-        uses: action-pack/bump@v2
+          name: digest-${{ matrix.arch }}
+          path: ${{ runner.temp }}/digests/*
+          retention-days: 1
+          if-no-files-found: error
+  manifest:
+    name: Publish multi-platform tags
+    needs: [version, publish]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      packages: write
+    steps:
+      - name: Download digests
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
         with:
-          token: ${{ secrets.REPO_ACCESS_TOKEN }}
-      -
-        name: Push to Gitlab mirror
-        uses: action-pack/gitlab-sync@v3
+          path: ${{ runner.temp }}/digests
+          pattern: digest-*
+          merge-multiple: true
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4
+      - name: Login to GHCR
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
         with:
-          url: ${{ secrets.GITLAB_URL }}
-          token: ${{ secrets.GITLAB_TOKEN }}
-          username: ${{ secrets.GITLAB_USERNAME }}
-      -
-        name: Send mail
-        uses: action-pack/send-mail@v1
-        with:
-          to: ${{secrets.MAILTO}}
-          from: Github Actions <${{secrets.MAILTO}}>
-          connection_url: ${{secrets.MAIL_CONNECTION}}
-          subject: Build of ${{ github.event.repository.name }} v${{ steps.meta.outputs.version }} completed
-          body: |
-              The build job of ${{ github.event.repository.name }} v${{ steps.meta.outputs.version }} was completed successfully! 
-              
-              See https://github.com/${{ github.repository }}/actions for more information.
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Create and inspect multi-platform image
+        working-directory: ${{ runner.temp }}/digests
+        env:
+          IMAGE: ${{ needs.version.outputs.image }}
+          VERSION: ${{ needs.version.outputs.version }}
+        run: |
+          sources=()
+          for digest in *; do
+            [[ "$digest" =~ ^[a-f0-9]{64}$ ]] || exit 1
+            sources+=("$IMAGE@sha256:$digest")
+          done
+          [[ ${#sources[@]} == 2 ]]
+          docker buildx imagetools create -t "$IMAGE:$VERSION" -t "$IMAGE:latest" "${sources[@]}"
+          docker buildx imagetools inspect "$IMAGE:$VERSION"
+          echo "Published \`$IMAGE:$VERSION\` and \`$IMAGE:latest\` for amd64 and arm64." >> "$GITHUB_STEP_SUMMARY"

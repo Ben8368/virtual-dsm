@@ -1,21 +1,40 @@
 <h1 align="center">Virtual DSM<br />
 <div align="center">
-<a href="https://github.com/vdsm/virtual-dsm"><img src="https://github.com/vdsm/virtual-dsm/raw/master/.github/screen.jpg" title="Screenshot" style="max-width:100%;" width="432" /></a>
+<a href="https://github.com/Ben8368/virtual-dsm"><img src=".github/screen.jpg" title="Screenshot" style="max-width:100%;" width="432" /></a>
 </div>
 <div align="center">
 
 [![Build]][build_url]
-[![Version]][tag_url]
-[![Size]][tag_url]
 [![Package]][pkg_url]
-[![Pulls]][hub_url]
 
 </div></h1>
 
 Virtual DSM in a Docker container.
 
+## Origin and independent maintenance
+
+This project originated from [vdsm/virtual-dsm](https://github.com/vdsm/virtual-dsm)
+at commit [`88c2d4673aa428c9dc9c9ae90eaf63d0e8e2335c`](https://github.com/vdsm/virtual-dsm/commit/88c2d4673aa428c9dc9c9ae90eaf63d0e8e2335c)
+(`build: Update QEMU base image to v7.50 (#1404)`).
+
+The standalone Git history starts with an import of that exact upstream
+source snapshot, followed by this maintainer's development commits. Earlier
+upstream commits are available in the original repository. Importing the
+snapshot does not claim authorship of the inherited code.
+
+It is now maintained independently by [Ben8368](https://github.com/Ben8368),
+with its own development direction, issue tracking and releases. Upstream
+changes are not automatically synchronized; any future adoption is reviewed
+individually. Credit remains with the original authors and contributors, and
+the inherited [MIT license](license.md) is preserved.
+
+Use this repository's source and images for its ARM64 support and other changes.
+The original project's images do not include this repository's additions.
+
 For local builds and Surveillance Station troubleshooting, see
 [package installation](docs/package-installation.md).
+For automated checks, image publishing and dependency updates, see [CI setup](docs/ci.md).
+For the JavaScript/TypeScript maintenance assessment, see [web frontend](docs/web-frontend.md).
 
 The image targets both `linux/amd64` and `linux/arm64` container hosts.
 `DSM_PLATFORM=virtualdsm` remains the stable default x86 VirtualDSM guest;
@@ -48,13 +67,18 @@ and [Phase 3 persistence evidence](research/arm64/production-phase3.md).
 
 ## Usage  🐳
 
+Published images use `ghcr.io/ben8368/virtual-dsm:latest`. The first image must
+be published with this repository's `Publish image` workflow before the
+registry-based examples below can be used. Until then, build from source with
+[compose.local.yml](compose.local.yml), as described in [local builds](docs/package-installation.md#local-builds).
+
 ##### Docker Compose:
 
 ```yaml
 services:
   dsm:
     container_name: dsm
-    image: vdsm/virtual-dsm
+    image: ghcr.io/ben8368/virtual-dsm:latest
     environment:
       DISK_SIZE: "256G"
     devices:
@@ -73,18 +97,18 @@ services:
 ##### Docker CLI:
 
 ```bash
-docker run -it --rm --name dsm -e "DISK_SIZE=256G" -p 5000:5000 --device=/dev/kvm --device=/dev/net/tun --cap-add NET_ADMIN -v "${PWD:-.}/dsm:/storage" --stop-timeout 120 docker.io/vdsm/virtual-dsm
+docker run -it --rm --name dsm -e "DISK_SIZE=256G" -p 5000:5000 --device=/dev/kvm --device=/dev/net/tun --cap-add NET_ADMIN -v "${PWD:-.}/dsm:/storage" --stop-timeout 120 ghcr.io/ben8368/virtual-dsm:latest
 ```
 
 ##### Kubernetes:
 
 ```shell
-kubectl apply -f https://raw.githubusercontent.com/vdsm/virtual-dsm/refs/heads/master/kubernetes.yml
+kubectl apply -f https://raw.githubusercontent.com/Ben8368/virtual-dsm/refs/heads/master/kubernetes.yml
 ```
 
 ##### GitHub Codespaces:
 
-[![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/vdsm/virtual-dsm)
+[![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/Ben8368/virtual-dsm)
 
 ## Requirements ⚙️
 
@@ -323,20 +347,12 @@ kubectl apply -f https://raw.githubusercontent.com/vdsm/virtual-dsm/refs/heads/m
   
   However, by installing Synology's Virtual DSM, you must accept their end-user license agreement, which does not permit installation on non-Synology hardware. So only run this container on an official Synology NAS, as any other use will be a violation of their terms and conditions.
 
-## Stars 🌟
-[![Stargazers](https://raw.githubusercontent.com/star-stats/stars/refs/heads/data/charts/vdsm-virtual-dsm.svg)](https://github.com/vdsm/virtual-dsm/stargazers)
-
 ## Disclaimer ⚖️
 
 *Only run this container on Synology hardware, any other use is not permitted by their EULA. The product names, logos, brands, and other trademarks referred to within this project are the property of their respective trademark holders. This project is not affiliated, sponsored, or endorsed by Synology, Inc.*
 
-[build_url]: https://github.com/vdsm/virtual-dsm/
-[hub_url]: https://hub.docker.com/r/vdsm/virtual-dsm
-[tag_url]: https://hub.docker.com/r/vdsm/virtual-dsm/tags
-[pkg_url]: https://github.com/vdsm/virtual-dsm/pkgs/container/virtual-dsm
+[build_url]: https://github.com/Ben8368/virtual-dsm/actions/workflows/test.yml
+[pkg_url]: https://github.com/Ben8368/virtual-dsm/pkgs/container/virtual-dsm
 
-[Build]: https://github.com/vdsm/virtual-dsm/actions/workflows/build.yml/badge.svg
-[Size]: https://img.shields.io/docker/image-size/vdsm/virtual-dsm/latest?color=066da5&label=size
-[Pulls]: https://img.shields.io/docker/pulls/vdsm/virtual-dsm.svg?style=flat&label=pulls&logo=docker
-[Version]: https://img.shields.io/docker/v/vdsm/virtual-dsm/latest?arch=amd64&sort=semver&color=066da5
-[Package]: https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fipitio.github.io%2Fbackage%2Fvdsm%2Fvirtual-dsm%2Fvirtual-dsm.json&query=%24.downloads&logo=github&style=flat&color=066da5&label=pulls
+[Build]: https://github.com/Ben8368/virtual-dsm/actions/workflows/test.yml/badge.svg
+[Package]: https://img.shields.io/badge/GHCR-virtual--dsm-066da5?logo=github

@@ -1,23 +1,44 @@
-name: Update
+name: Docker Hub description
+
 on:
+  workflow_dispatch:
   push:
-    branches:
-      - master
-    paths:
-      - readme.md
-      - README.md
-      - .github/workflows/hub.yml
+    branches: [master]
+    paths: [readme.md, .github/workflows/hub.yml]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dockerhub-description
+  cancel-in-progress: true
 
 jobs:
-  dockerHubDescription:
-    runs-on: ubuntu-latest
+  description:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
     steps:
-      -
-        name: Checkout repo
-        uses: actions/checkout@v7
-      - 
-        name: Docker Hub Description
-        uses: peter-evans/dockerhub-description@v5
+      - name: Detect optional Docker Hub credentials
+        id: config
+        env:
+          HUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          HUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+          HUB_REPO: ${{ secrets.DOCKERHUB_REPO }}
+        run: |
+          if [[ -n "$HUB_USERNAME" && -n "$HUB_TOKEN" && -n "$HUB_REPO" ]]; then
+            echo 'enabled=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'enabled=false' >> "$GITHUB_OUTPUT"
+            echo 'Docker Hub credentials are not configured; optional README sync skipped.' >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - name: Checkout
+        if: steps.config.outputs.enabled == 'true'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Update description
+        if: steps.config.outputs.enabled == 'true'
+        uses: peter-evans/dockerhub-description@1b9a80c056b620d92cedb9d9b5a223409c68ddfa # v5
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}

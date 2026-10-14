@@ -1,37 +1,46 @@
-name: ARM QEMU production build
+name: Native image checks
+
 on:
+  workflow_call:
   workflow_dispatch:
+
 permissions:
   contents: read
+
 jobs:
-  qemu:
+  image:
+    name: Image (${{ matrix.arch }})
     strategy:
       fail-fast: false
       matrix:
         include:
           - runner: ubuntu-24.04
-            platform: linux/amd64
+            arch: amd64
           - runner: ubuntu-24.04-arm
-            platform: linux/arm64
+            arch: arm64
     runs-on: ${{ matrix.runner }}
+    timeout-minutes: 45
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
-      - name: Buildx
-        uses: docker/setup-buildx-action@v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4
       - name: Build production runtime natively
-        uses: docker/build-push-action@v7
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
         with:
           context: .
-          platforms: ${{ matrix.platform }}
-          tags: virtual-dsm:phase1
+          platforms: linux/${{ matrix.arch }}
+          tags: virtual-dsm:ci
           load: true
-          cache-from: type=gha,scope=qemu-${{ matrix.platform }}
-          cache-to: type=gha,mode=max,scope=qemu-${{ matrix.platform }}
-      - name: Verify both emulators
+          cache-from: type=gha,scope=image-${{ matrix.arch }}
+          cache-to: type=gha,mode=max,scope=image-${{ matrix.arch }}
+      - name: Verify emulators, shared libraries and Python dependencies
         run: |
-          docker run --rm --entrypoint qemu-system-aarch64 virtual-dsm:phase1 --version
-          docker run --rm --entrypoint qemu-system-x86_64 virtual-dsm:phase1 --version
+          docker run --rm --entrypoint qemu-system-aarch64 virtual-dsm:ci --version
+          docker run --rm --entrypoint qemu-system-x86_64 virtual-dsm:ci --version
+          docker run --rm --entrypoint bash virtual-dsm:ci -ec 'if ldd /usr/local/bin/qemu-system-aarch64 | grep -q "not found"; then exit 1; fi'
+          docker run --rm --entrypoint python3 virtual-dsm:ci -c 'import dissect.cstruct; import dissect.extfs'
       - name: Verify default production command
-        if: matrix.platform == 'linux/amd64'
-        run: bash tests/production-x86-command.sh virtual-dsm:phase1
+        run: bash tests/production-x86-command.sh virtual-dsm:ci

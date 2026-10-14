@@ -1,29 +1,52 @@
-on: [workflow_call]
-name: "Check"
-permissions: {}
+name: Check
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
 jobs:
-  shellcheck:
-    name: shellcheck
-    runs-on: ubuntu-latest
+  lint:
+    name: Lint
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
-      - name: Run ShellCheck
-        uses: ludeeus/action-shellcheck@master
-        env:
-          SHELLCHECK_OPTS: >-
-            -x
-            --source-path=src
-            -e SC1091
-            -e SC2001
-            -e SC2034
-            -e SC2317
-            -e SC2153
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 2
+          persist-credentials: false
+      - name: Install lint tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends shellcheck python3-yaml
+      - name: Shell syntax and ShellCheck
+        run: |
+          mapfile -d '' scripts < <(git ls-files -z '*.sh')
+          for script in "${scripts[@]}"; do bash -n "$script"; done
+          shellcheck -x "${scripts[@]}"
       - name: Lint Dockerfile
-        uses: hadolint/hadolint-action@v3.5.0
+        uses: hadolint/hadolint-action@06be81baf89a55ffd0e24b8f04a4185738dd3387 # v3.5.0
         with:
           dockerfile: Dockerfile
           ignore: DL3008,DL3067
           failure-threshold: warning
-      - name: Validate JSON and YML files
-        uses: GrantBirki/json-yaml-validate@v5
+      - name: Validate tracked JSON and YAML
+        run: python3 scripts/check-config.py
+      - name: Validate GitHub Actions workflows
+        env:
+          ACTIONLINT_VERSION: 1.7.12
+        run: |
+          tools_dir=$(mktemp -d)
+          cd "$tools_dir"
+          archive="actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz"
+          url="https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}"
+          curl --fail --silent --show-error --location --retry 3 "$url/$archive" -o "$archive"
+          curl --fail --silent --show-error --location --retry 3 "$url/actionlint_${ACTIONLINT_VERSION}_checksums.txt" -o checksums.txt
+          grep " $archive$" checksums.txt | sha256sum --check --strict
+          tar -xzf "$archive" actionlint
+          cd "$GITHUB_WORKSPACE"
+          "$tools_dir/actionlint" -color
+      - name: Whitespace
+        run: git show --format= --check HEAD

@@ -2,7 +2,7 @@
 set -Eeuo pipefail
 
 : "${APP:="Virtual DSM"}"
-: "${SUPPORT:="https://github.com/vdsm/virtual-dsm"}"
+: "${SUPPORT:="https://github.com/Ben8368/virtual-dsm"}"
 
 : "${USB:="N"}"
 : "${AUDIO:="N"}"

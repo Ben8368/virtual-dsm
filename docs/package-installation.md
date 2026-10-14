@@ -6,7 +6,8 @@ a runtime disk or change identity to investigate a generic installation failure.
 
 ## Local builds
 
-compose.yml still uses the published upstream image. Deploy this branch with:
+`compose.yml` uses this project's GHCR image, which requires an initial
+`Publish image` run. To build and deploy the current source directly, use:
 
 ```sh
 DSM_PLATFORM=rtd1619b docker compose -f compose.local.yml build

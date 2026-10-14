@@ -20,12 +20,12 @@ SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 COPY --from=arm-qemu-build /out/qemu-system-aarch64 /usr/local/bin/qemu-system-aarch64
 
 ARG VERSION_ARG="0.0"
-ARG VERSION_CSTRUCT="4.7"
 
 ARG DEBCONF_NOWARNINGS="yes"
 ARG DEBIAN_FRONTEND="noninteractive"
 ARG DEBCONF_NONINTERACTIVE_SEEN="true"
 
+COPY requirements.txt /tmp/requirements.txt
 RUN <<EOF
   set -eu
 
@@ -45,7 +45,7 @@ RUN <<EOF
   apt-get clean
 
   # Install Python dependencies
-  pip3 install --no-cache-dir --break-system-packages --root-user-action=ignore "dissect.cstruct==$VERSION_CSTRUCT" "dissect.extfs==3.15"
+  pip3 install --no-cache-dir --break-system-packages --root-user-action=ignore -r /tmp/requirements.txt
 
   qemu-system-aarch64 --version
   qemu-system-x86_64 --version
