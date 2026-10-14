@@ -115,6 +115,9 @@ storage/
 windows/
 downloads/
 
+# ARM DSM research artifacts may contain proprietary PAT contents.
+/research/arm64/work/
+
 ##############################
 # Disk Images
 ##############################
@@ -207,6 +210,7 @@ coverage.xml
 # Archives
 ##############################
 
+*.pat
 *.zip
 *.tar
 *.tar.gz
@@ -266,3 +270,21 @@ Temporary Items
 
 !.gitkeep
 !.env.example
+
+# Prepared DSM direct-boot artifacts are proprietary.
+*.kernel
+*.initrd
+Image
+zImage
+rd.bin*
+hda1.tgz
+.syno/
+*.Image
+*.cpio
+*.initramfs
+hda1/
+
+# Private ARM installer workspaces and generation payloads (storage-owned).
+.rtd1619b-install-*/
+.*.arm-generation-*/
+*.arm-current

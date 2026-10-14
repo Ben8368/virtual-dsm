@@ -1,23 +1,6 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-addSystemDisks() {
-
-  local boot="$STORAGE/$BASE.boot.img"
-  local system="$STORAGE/$BASE.system.img"
-
-  [ ! -s "$boot" ] && error "Virtual DSM boot-image does not exist ($boot)" && return 81
-  [ ! -s "$system" ] && error "Virtual DSM system-image does not exist ($system)" && return 82
-
-  setOwner "$boot" || warn "failed to set the owner for \"$boot\" !"
-  setOwner "$system" || warn "failed to set the owner for \"$system\" !"
-
-  DISK_OPTS+=$(createDevice "$boot" "$DISK_TYPE" "1" "0xa" "raw" "" "" "synoboot")
-  DISK_OPTS+=$(createDevice "$system" "$DISK_TYPE" "2" "0xb" "raw" "" "" "synosys")
-
-  return 0
-}
-
 closeWebserver() {
 
   disabled "${NETWORK:-Y}" && return 0
@@ -39,7 +22,7 @@ closeWebserver() {
   return 0
 }
 
-addSystemDisks || return $?
+platformPrepareSystemDisks || return $?
 closeWebserver || return $?
 
 return 0

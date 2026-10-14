@@ -1,0 +1,241 @@
+diff --git a/hw/arm/virt.c b/hw/arm/virt.c
+index be2856c..c72f91d 100644
+--- a/hw/arm/virt.c
++++ b/hw/arm/virt.c
+@@ -80,6 +80,9 @@
+ #include "hw/virtio/virtio-md-pci.h"
+ #include "hw/virtio/virtio-iommu.h"
+ #include "hw/char/pl011.h"
++#include "hw/char/serial.h"
++#include "hw/ide/ahci_internal.h"
++#include "hw/usb/hcd-xhci-sysbus.h"
+ #include "qemu/guest-random.h"
+
+ #define DEFINE_VIRT_MACHINE_LATEST(major, minor, latest) \
+@@ -146,6 +149,11 @@ static const MemMapEntry base_memmap[] = {
+     /* This redistributor space allows up to 2*64kB*123 CPUs */
+     [VIRT_GIC_REDIST] =         { 0x080A0000, 0x00F60000 },
+     [VIRT_UART] =               { 0x09000000, 0x00001000 },
++    /* Reserved gap after virtio-mmio and before the platform bus. */
++    [VIRT_DSM_UART] =           { 0x0b000000, 0x00001000 },
++    [VIRT_DSM_AHCI] =           { 0x0b100000, 0x00001000 },
++    [VIRT_DSM_SYSCON] =         { 0x0b110000, 0x00001000 },
++    [VIRT_DSM_XHCI] =           { 0x0b200000, 0x00004000 },
+     [VIRT_RTC] =                { 0x09010000, 0x00001000 },
+     [VIRT_FW_CFG] =             { 0x09020000, 0x00000018 },
+     [VIRT_GPIO] =               { 0x09030000, 0x00001000 },
+@@ -198,6 +206,9 @@ static const int a15irqmap[] = {
+     [VIRT_GPIO] = 7,
+     [VIRT_SECURE_UART] = 8,
+     [VIRT_ACPI_GED] = 9,
++    [VIRT_DSM_UART] = 10,
++    [VIRT_DSM_AHCI] = 11,
++    [VIRT_DSM_XHCI] = 12,
+     [VIRT_MMIO] = 16, /* ...to 16 + NUM_VIRTIO_TRANSPORTS - 1 */
+     [VIRT_GIC_V2M] = 48, /* ...to 48 + NUM_GICV2M_SPIS - 1 */
+     [VIRT_SMMU] = 74,    /* ...to 74 + NUM_SMMU_IRQS - 1 */
+@@ -907,6 +918,179 @@ static void create_uart(const VirtMachineState *vms, int uart,
+     g_free(nodename);
+ }
+
++/* The stock dw8250_setup_port() reads UCV even for a 16550-compatible port.
++ * Zero UCV/CPR advertise no DesignWare extensions; serial-mm supplies the
++ * eight standard UART registers. This is not a Realtek UART model.
++ */
++static uint64_t dsm_uart_id_read(void *opaque, hwaddr offset, unsigned size)
++{
++    return 0;
++}
++
++static void dsm_uart_id_write(void *opaque, hwaddr offset,
++                              uint64_t value, unsigned size)
++{
++}
++
++static const MemoryRegionOps dsm_uart_id_ops = {
++    .read = dsm_uart_id_read,
++    .write = dsm_uart_id_write,
++    .endianness = DEVICE_LITTLE_ENDIAN,
++    .valid.min_access_size = 4,
++    .valid.max_access_size = 4,
++};
++
++/* Research-only 16550 UART matching the DS124 DesignWare register layout. */
++/* Research-only sysbus AHCI path that bypasses PCI entirely. */
++static void create_dsm_ahci(const VirtMachineState *vms, MemoryRegion *mem)
++{
++    MachineState *ms = MACHINE(vms);
++    hwaddr base = vms->memmap[VIRT_DSM_AHCI].base;
++    hwaddr size = vms->memmap[VIRT_DSM_AHCI].size;
++    hwaddr syscon_base = vms->memmap[VIRT_DSM_SYSCON].base;
++    hwaddr syscon_size = vms->memmap[VIRT_DSM_SYSCON].size;
++    int irq = vms->irqmap[VIRT_DSM_AHCI];
++    DeviceState *dev;
++    SysbusAHCIState *sysahci;
++    DriveInfo *hd[1];
++    MemoryRegion *syscon = g_new(MemoryRegion, 1);
++    uint32_t clock_phandle = qemu_fdt_alloc_phandle(ms->fdt);
++    uint32_t syscon_phandle = qemu_fdt_alloc_phandle(ms->fdt);
++    uint32_t reset_phandle = qemu_fdt_alloc_phandle(ms->fdt);
++    char *nodename;
++
++    dev = qdev_new(TYPE_SYSBUS_AHCI);
++    qdev_prop_set_uint32(dev, "num-ports", 1);
++    sysbus_realize_and_unref(SYS_BUS_DEVICE(dev), &error_fatal);
++    sysbus_mmio_map(SYS_BUS_DEVICE(dev), 0, base);
++    sysbus_connect_irq(SYS_BUS_DEVICE(dev), 0, qdev_get_gpio_in(vms->gic, irq));
++
++    sysahci = SYSBUS_AHCI(dev);
++    ide_drive_get(hd, ARRAY_SIZE(hd));
++    if (hd[0]) {
++        ide_bus_create_drive(&sysahci->ahci.dev[0].port, 0, hd[0]);
++    }
++
++    /* The Realtek wrapper only updates these syscon bits before AHCI init. */
++    memory_region_init_ram(syscon, NULL, "dsm-research-sata-syscon", syscon_size,
++                           &error_fatal);
++    memory_region_add_subregion(mem, syscon_base, syscon);
++
++    qemu_fdt_add_subnode(ms->fdt, "/dsm-sata-clock");
++    qemu_fdt_setprop_string(ms->fdt, "/dsm-sata-clock", "compatible", "fixed-clock");
++    qemu_fdt_setprop_cells(ms->fdt, "/dsm-sata-clock", "#clock-cells", 0);
++    qemu_fdt_setprop_cells(ms->fdt, "/dsm-sata-clock", "clock-frequency", 100000000);
++    qemu_fdt_setprop_cells(ms->fdt, "/dsm-sata-clock", "phandle", clock_phandle);
++
++    qemu_fdt_add_subnode(ms->fdt, "/sata-syscon");
++    qemu_fdt_setprop_string(ms->fdt, "/sata-syscon", "compatible", "syscon");
++    qemu_fdt_setprop_sized_cells(ms->fdt, "/sata-syscon", "reg", 2,
++                                 syscon_base, 2, syscon_size);
++    qemu_fdt_setprop_cells(ms->fdt, "/sata-syscon", "phandle", syscon_phandle);
++
++    qemu_fdt_add_subnode(ms->fdt, "/sata-reset");
++    qemu_fdt_setprop_string(ms->fdt, "/sata-reset", "compatible",
++                            "altr,stratix10-rst-mgr");
++    qemu_fdt_setprop_sized_cells(ms->fdt, "/sata-reset", "reg", 2,
++                                 syscon_base, 2, syscon_size);
++    qemu_fdt_setprop_cells(ms->fdt, "/sata-reset", "#reset-cells", 1);
++    qemu_fdt_setprop_cells(ms->fdt, "/sata-reset", "phandle", reset_phandle);
++
++    nodename = g_strdup_printf("/sata@%" PRIx64, base);
++    qemu_fdt_add_subnode(ms->fdt, nodename);
++    qemu_fdt_setprop_string(ms->fdt, nodename, "compatible", "realtek,ahci-sata");
++    qemu_fdt_setprop_sized_cells(ms->fdt, nodename, "reg", 2, base, 2, size);
++    qemu_fdt_setprop_cells(ms->fdt, nodename, "interrupts",
++                           GIC_FDT_IRQ_TYPE_SPI, irq, GIC_FDT_IRQ_FLAGS_LEVEL_HI);
++    qemu_fdt_setprop_cells(ms->fdt, nodename, "clocks", clock_phandle);
++    qemu_fdt_setprop_phandle(ms->fdt, nodename, "realtek,satawrap", "/sata-syscon");
++    qemu_fdt_setprop_cells(ms->fdt, nodename, "#address-cells", 1);
++    qemu_fdt_setprop_cells(ms->fdt, nodename, "#size-cells", 0);
++    qemu_fdt_setprop_cells(ms->fdt, nodename, "hostinit-mode", 1);
++    qemu_fdt_setprop_string(ms->fdt, nodename, "status", "okay");
++    {
++        char *portname = g_strdup_printf("%s/sata-port@0", nodename);
++        qemu_fdt_add_subnode(ms->fdt, portname);
++        qemu_fdt_setprop_cells(ms->fdt, portname, "reg", 0);
++        qemu_fdt_setprop_cells(ms->fdt, portname, "resets", reset_phandle, 0);
++        qemu_fdt_setprop_string(ms->fdt, portname, "status", "okay");
++        g_free(portname);
++    }
++    g_free(nodename);
++}
++
++/* Research-only non-PCI USB host; follows sbsa-ref create_xhci(). */
++static void create_dsm_xhci(const VirtMachineState *vms)
++{
++    MachineState *ms = MACHINE(vms);
++    hwaddr base = vms->memmap[VIRT_DSM_XHCI].base;
++    hwaddr size = vms->memmap[VIRT_DSM_XHCI].size;
++    int irq = vms->irqmap[VIRT_DSM_XHCI];
++    DeviceState *dev = qdev_new(TYPE_XHCI_SYSBUS);
++    char *nodename = g_strdup_printf("/usb@%" PRIx64, base);
++
++    qdev_prop_set_uint32(dev, "slots", 8);
++    qdev_prop_set_uint32(dev, "intrs", 1);
++    qdev_prop_set_uint32(dev, "p2", 2);
++    qdev_prop_set_uint32(dev, "p3", 2);
++    sysbus_realize_and_unref(SYS_BUS_DEVICE(dev), &error_fatal);
++    sysbus_mmio_map(SYS_BUS_DEVICE(dev), 0, base);
++    sysbus_connect_irq(SYS_BUS_DEVICE(dev), 0, qdev_get_gpio_in(vms->gic, irq));
++
++    /* Verified alias in stock DS124 xhci-plat-hcd.ko; no PHY/clock shim. */
++    qemu_fdt_add_subnode(ms->fdt, nodename);
++    qemu_fdt_setprop_string(ms->fdt, nodename, "compatible", "generic-xhci");
++    qemu_fdt_setprop_sized_cells(ms->fdt, nodename, "reg", 2, base, 2, size);
++    qemu_fdt_setprop_cells(ms->fdt, nodename, "interrupts",
++                           GIC_FDT_IRQ_TYPE_SPI, irq, GIC_FDT_IRQ_FLAGS_LEVEL_HI);
++    qemu_fdt_setprop_string(ms->fdt, nodename, "status", "okay");
++    g_free(nodename);
++}
++
++static void create_dsm_uart(const VirtMachineState *vms, MemoryRegion *mem)
++{
++    hwaddr base = vms->memmap[VIRT_DSM_UART].base;
++    hwaddr size = vms->memmap[VIRT_DSM_UART].size;
++    int irq = vms->irqmap[VIRT_DSM_UART];
++    const char compat[] = "snps,dw-apb-uart";
++    MachineState *ms = MACHINE(vms);
++    char *nodename;
++    uint32_t reg_shift = 2;
++    uint32_t reg_io_width = 4;
++    uint32_t clock_frequency = 1843200;
++    MemoryRegion *id_regs = g_new(MemoryRegion, 1);
++
++    serial_mm_init(mem, base, reg_shift,
++                   qdev_get_gpio_in(vms->gic, irq), 115200,
++                   serial_hd(1), DEVICE_LITTLE_ENDIAN);
++    memory_region_init_io(id_regs, NULL, &dsm_uart_id_ops, NULL,
++                          "dsm-research-uart-id", 8);
++    memory_region_add_subregion(mem, base + 0xf4, id_regs);
++
++    nodename = g_strdup_printf("/serial@%" PRIx64, base);
++    qemu_fdt_add_subnode(ms->fdt, nodename);
++    qemu_fdt_setprop(ms->fdt, nodename, "compatible",
++                     compat, sizeof(compat));
++    qemu_fdt_setprop_sized_cells(ms->fdt, nodename, "reg",
++                                 2, base, 2, size);
++    qemu_fdt_setprop_cells(ms->fdt, nodename, "reg-shift", reg_shift);
++    qemu_fdt_setprop_cells(ms->fdt, nodename, "reg-io-width", reg_io_width);
++    qemu_fdt_setprop_cells(ms->fdt, nodename, "clock-frequency",
++                           clock_frequency);
++    qemu_fdt_setprop_cells(ms->fdt, nodename, "interrupts",
++                           GIC_FDT_IRQ_TYPE_SPI, irq,
++                           GIC_FDT_IRQ_FLAGS_LEVEL_HI);
++    /* serial-mm has no DesignWare busy-detect/USR/CPR registers. */
++    qemu_fdt_setprop(ms->fdt, nodename, "snps,uart-16550-compatible",
++                     NULL, 0);
++    qemu_fdt_setprop_string(ms->fdt, nodename, "status", "okay");
++    qemu_fdt_add_subnode(ms->fdt, "/aliases");
++    qemu_fdt_setprop_string(ms->fdt, "/aliases", "serial0", nodename);
++    qemu_fdt_setprop_string(ms->fdt, "/chosen", "stdout-path",
++                            "/serial@b000000:115200n8");
++    g_free(nodename);
++}
++
+ static void create_rtc(const VirtMachineState *vms)
+ {
+     char *nodename;
+@@ -2272,6 +2456,9 @@ static void machvirt_init(MachineState *machine)
+     fdt_add_pmu_nodes(vms);
+
+     create_uart(vms, VIRT_UART, sysmem, serial_hd(0));
++    create_dsm_uart(vms, sysmem);
++    create_dsm_ahci(vms, sysmem);
++    create_dsm_xhci(vms);
+
+     if (vms->secure) {
+         create_secure_ram(vms, secure_sysmem, secure_tag_sysmem);
+diff --git a/include/hw/arm/virt.h b/include/hw/arm/virt.h
+index f692398..bcf4830 100644
+--- a/include/hw/arm/virt.h
++++ b/include/hw/arm/virt.h
+@@ -60,6 +60,10 @@ enum {
+     VIRT_GIC_REDIST,
+     VIRT_SMMU,
+     VIRT_UART,
++    VIRT_DSM_UART,
++    VIRT_DSM_AHCI,
++    VIRT_DSM_SYSCON,
++    VIRT_DSM_XHCI,
+     VIRT_MMIO,
+     VIRT_RTC,
+     VIRT_FW_CFG,

@@ -1,8 +1,23 @@
 # syntax=docker/dockerfile:1
 
-FROM scratch
+FROM qemux/qemu:7.50 AS base
 
-COPY --from=qemux/qemu:7.50 / /
+# BuildKit uses TARGETPLATFORM for every stage, independently of guest CPU.
+FROM debian:trixie-slim AS arm-qemu-build
+ARG TARGETARCH
+ARG QEMU_VERSION="8.2.2"
+RUN apt-get update && apt-get --no-install-recommends -y install \
+    build-essential ca-certificates git meson ninja-build pkg-config \
+    python3-venv libglib2.0-dev libpixman-1-dev libslirp-dev \
+    && rm -rf /var/lib/apt/lists/*
+COPY patches/qemu/8.2.2/ /patches/
+COPY --chmod=755 scripts/build-arm-qemu.sh /build-arm-qemu.sh
+COPY --chmod=755 scripts/apply-qemu-patches.sh /apply-qemu-patches.sh
+RUN /build-arm-qemu.sh
+
+FROM base AS runtime
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+COPY --from=arm-qemu-build /out/qemu-system-aarch64 /usr/local/bin/qemu-system-aarch64
 
 ARG VERSION_ARG="0.0"
 ARG VERSION_CSTRUCT="4.7"
@@ -17,13 +32,23 @@ RUN <<EOF
   apt-get update
   apt-get --no-install-recommends -y install \
     fakeroot \
+    xz-utils \
+    tar \
+    e2fsprogs \
+    util-linux \
     python3-msgpack \
-    python3-pysodium
+    python3-pysodium \
+    libslirp0 \
+    libpixman-1-0
 
   apt-get clean
 
   # Install Python dependencies
-  pip3 install --no-cache-dir --break-system-packages --root-user-action=ignore "dissect.cstruct==$VERSION_CSTRUCT"
+  pip3 install --no-cache-dir --break-system-packages --root-user-action=ignore "dissect.cstruct==$VERSION_CSTRUCT" "dissect.extfs==3.15"
+
+  qemu-system-aarch64 --version
+  qemu-system-x86_64 --version
+  if ldd /usr/local/bin/qemu-system-aarch64 | grep -q "not found"; then exit 1; fi
 
   # Set version file
   echo "$VERSION_ARG" > /etc/version

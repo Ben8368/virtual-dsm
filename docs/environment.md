@@ -8,7 +8,8 @@ An empty default means the variable is unset and its value is determined automat
 
 | Variable | Default | Description |
 |---|---|---|
-| `URL` |  | URL or local path to a custom `.pat` installation file. |
+| `DSM_PLATFORM` | `virtualdsm` | DSM hardware selector: `virtualdsm` or experimental DS124 `rtd1619b`; see [platforms](platforms.md). |
+| `URL` |  | HTTPS or `file://` PAT source. Experimental `rtd1619b` accepts only the exact official DS124 DSM 7.2.2-72806 PAT; see [automatic preparation](arm64-auto-install.md). |
 | `COUNTRY` |  | Country code used to select the Synology download mirror. |
 | `HOST_MAC` |  | MAC address reported to DSM. |
 | `HOST_MODEL` |  | Synology host model reported to DSM. |
@@ -32,7 +33,7 @@ An empty default means the variable is unset and its value is determined automat
 
 | Variable | Default | Description |
 |---|---|---|
-| `DISK_SIZE` | `256G` | Size of the main data disk. |
+| `DISK_SIZE` | `256G` | x86: size of the main data disk. rtd1619b: total sparse single SATA runtime disk capacity; fixed p1, DSM-managed tail. Grow only; shrink rejected. See [ARM runtime policy](arm64-runtime-state.md). |
 | `DISK_FMT` | `raw` | Disk image format: `raw` or `qcow2`. |
 | `DISK_TYPE` | `scsi` | Disk device type, such as `ide`, `scsi`, or `blk`. |
 | `DISK_CACHE` | `none` | Disk cache mode, such as `none` or `writeback`. |

@@ -14,6 +14,23 @@
 
 Virtual DSM in a Docker container.
 
+The image targets both `linux/amd64` and `linux/arm64` container hosts.
+`DSM_PLATFORM=virtualdsm` remains the stable default x86 VirtualDSM guest;
+on an ARM64 host that guest uses much slower QEMU TCG.
+
+`DSM_PLATFORM=rtd1619b` adds **experimental DS124 / rtd1619b ARM64 guest support**.
+Automatic preparation from the exact official DS124 DSM 7.2.2-72806 PAT is
+supported. Mutable runtime disks are preserved, and the official local setup
+and single-disk Basic/Btrfs path have demonstrated persistent configuration and
+data through two clean restart cycles. Storage Manager currently needs manual installation
+from the same PAT; this is a DSM-compatible virtual layout with partially unused
+capacity. A transient module-loading watchdog warning prevents full Phase 3
+stability acceptance; ARM support remains experimental. An x86_64 host uses slow TCG with
+`max,lpa2=off`; an ARM64 host can select KVM only after a successful host/guest
+compatibility probe. ARM64 KVM runtime still needs hardware validation.
+See [platform configuration and automatic DS124 preparation](docs/platforms.md)
+and [Phase 3 persistence evidence](research/arm64/production-phase3.md).
+
 ## Features ✨
 
 - Runs Virtual DSM inside a Docker container

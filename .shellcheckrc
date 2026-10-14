@@ -1,0 +1,4 @@
+# Same exclusions as the inherited qemux shellcheck CI: external runtime sources
+# and variables supplied by other sourced scripts are absent in a source checkout.
+source-path=src
+disable=SC1091,SC2001,SC2034,SC2317,SC2153

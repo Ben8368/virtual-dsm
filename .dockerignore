@@ -14,3 +14,18 @@ docker-compose.yaml
 
 *.md
 
+
+# Never send proprietary DSM artifacts or research builds into Docker context.
+research/
+storage/
+tests/
+*.pat
+*.img
+*.bin
+*.kernel
+*.initrd
+*.Image
+*.cpio
+*.initramfs
+hda1/
+.syno/

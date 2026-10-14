@@ -1,0 +1,89 @@
+--- a/hw/arm/virt.c
++++ b/hw/arm/virt.c
+@@ -1047,6 +1047,78 @@
+     g_free(nodename);
+ }
+ 
++/* Research-only Synology disk LED OF contract used by ds124_synobios.
++ * SetupLedTrigDiskMap resolves internal_slot@N led_green/led_orange to
++ * led_classdev via of_leddev_get. Stock DS124 uses gpio-leds on Realtek
++ * GPIO; this guest kernel has no pl061 driver, so virt PL061 gpio-leds
++ * never register classdevs and SYNOIO_SET_DISK_LED oopses under LedSetLock.
++ * register-bit-led + syscon/simple-mfd matches an in-tree LED path and
++ * needs only a tiny MMIO scratch page — not RTD1619B GPIO.
++ */
++#define VIRT_DSM_LED_SYSCON_BASE 0x0b120000ULL
++#define VIRT_DSM_LED_SYSCON_SIZE 0x00001000ULL
++
++static void create_dsm_syno_leds(const VirtMachineState *vms, MemoryRegion *mem)
++{
++    MachineState *ms = MACHINE(vms);
++    MemoryRegion *syscon = g_new(MemoryRegion, 1);
++    uint32_t green_phandle;
++    uint32_t orange_phandle;
++    char *nodename;
++
++    memory_region_init_ram(syscon, NULL, "dsm-research-led-syscon",
++                           VIRT_DSM_LED_SYSCON_SIZE, &error_fatal);
++    memory_region_add_subregion(mem, VIRT_DSM_LED_SYSCON_BASE, syscon);
++
++    green_phandle = qemu_fdt_alloc_phandle(ms->fdt);
++    orange_phandle = qemu_fdt_alloc_phandle(ms->fdt);
++
++    nodename = g_strdup_printf("/led-syscon@%" PRIx64, VIRT_DSM_LED_SYSCON_BASE);
++    qemu_fdt_add_subnode(ms->fdt, nodename);
++    {
++        static const char led_syscon_compat[] = "syscon\0simple-mfd";
++        qemu_fdt_setprop(ms->fdt, nodename, "compatible", led_syscon_compat,
++                         sizeof(led_syscon_compat));
++    }
++    qemu_fdt_setprop_sized_cells(ms->fdt, nodename, "reg", 2,
++                                 VIRT_DSM_LED_SYSCON_BASE, 2,
++                                 VIRT_DSM_LED_SYSCON_SIZE);
++
++    /* Children are register-bit-led; parent supplies the syscon regmap. */
++    g_free(nodename);
++    nodename = g_strdup_printf("/led-syscon@%" PRIx64 "/led_0",
++                               VIRT_DSM_LED_SYSCON_BASE);
++    qemu_fdt_add_subnode(ms->fdt, nodename);
++    qemu_fdt_setprop_string(ms->fdt, nodename, "compatible", "register-bit-led");
++    qemu_fdt_setprop_string(ms->fdt, nodename, "label", "led0");
++    qemu_fdt_setprop_cells(ms->fdt, nodename, "offset", 0);
++    qemu_fdt_setprop_cells(ms->fdt, nodename, "mask", 0x1);
++    qemu_fdt_setprop_string(ms->fdt, nodename, "linux,default-trigger",
++                            "disk_syno");
++    qemu_fdt_setprop_cell(ms->fdt, nodename, "phandle", green_phandle);
++    g_free(nodename);
++
++    nodename = g_strdup_printf("/led-syscon@%" PRIx64 "/led_1",
++                               VIRT_DSM_LED_SYSCON_BASE);
++    qemu_fdt_add_subnode(ms->fdt, nodename);
++    qemu_fdt_setprop_string(ms->fdt, nodename, "compatible", "register-bit-led");
++    qemu_fdt_setprop_string(ms->fdt, nodename, "label", "led1");
++    qemu_fdt_setprop_cells(ms->fdt, nodename, "offset", 0);
++    qemu_fdt_setprop_cells(ms->fdt, nodename, "mask", 0x2);
++    qemu_fdt_setprop_string(ms->fdt, nodename, "linux,default-trigger",
++                            "disk_syno");
++    qemu_fdt_setprop_cell(ms->fdt, nodename, "phandle", orange_phandle);
++    g_free(nodename);
++
++    nodename = g_strdup("/internal_slot@1");
++    qemu_fdt_add_subnode(ms->fdt, nodename);
++    qemu_fdt_setprop_string(ms->fdt, nodename, "protocol_type", "sata");
++    qemu_fdt_setprop_string(ms->fdt, nodename, "led_type", "trig_disk_syno");
++    qemu_fdt_setprop_cell(ms->fdt, nodename, "led_green", green_phandle);
++    qemu_fdt_setprop_cell(ms->fdt, nodename, "led_orange", orange_phandle);
++    g_free(nodename);
++}
++
+ static void create_dsm_uart(const VirtMachineState *vms, MemoryRegion *mem)
+ {
+     hwaddr base = vms->memmap[VIRT_DSM_UART].base;
+@@ -2480,6 +2552,7 @@
+         vms->acpi_dev = create_acpi_ged(vms);
+     } else {
+         create_gpio_devices(vms, VIRT_GPIO, sysmem);
++        create_dsm_syno_leds(vms, sysmem);
+     }
+ 
+     if (vms->secure && !vmc->no_secure_gpio) {

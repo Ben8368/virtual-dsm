@@ -9,3 +9,44 @@ jobs:
   shellcheck:
     name: Test
     uses: ./.github/workflows/check.yml
+  arm64-research-smoke:
+    name: ARM64 research smoke checks
+    runs-on: ubuntu-latest
+    steps:
+      -
+        name: Checkout
+        uses: actions/checkout@v7
+      -
+        name: Check research scripts and QEMU command construction
+        run: bash research/arm64/tests/smoke.sh
+
+  platforms:
+    name: Platform regression and patch checks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+      - name: Command and input regression tests
+        run: |
+          bash tests/platform.sh
+          bash tests/pat-acquisition.sh
+      - name: Clean apply production patches to QEMU v8.2.2
+        run: bash tests/qemu-patches.sh
+      - name: Synthetic read-only image validation
+        run: |
+          python3 -m venv /tmp/platform-tests
+          /tmp/platform-tests/bin/pip install dissect.extfs==3.15 dissect.cstruct==4.7
+          /tmp/platform-tests/bin/python tests/image-validation.py
+      - name: Synthetic ARM automatic installer (no DSM downloads)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y fakeroot e2fsprogs
+          fakeroot /tmp/platform-tests/bin/python tests/arm-installer.py
+          /tmp/platform-tests/bin/python tests/arm-runtime.py
+          /tmp/platform-tests/bin/python tests/x86-installer-regression.py
+          python3 tests/proprietary-artifacts.py
+      - name: Shellcheck production and research
+        run: |
+          shellcheck -x src/*.sh src/platform/*.sh research/arm64/*.sh research/arm64/tests/*.sh scripts/*.sh tests/*.sh
+      - name: Whitespace
+        run: git diff --check

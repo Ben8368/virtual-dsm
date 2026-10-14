@@ -1,0 +1,7 @@
+*.sh text eol=lf
+*.py text eol=lf
+*.patch text eol=lf
+Dockerfile text eol=lf
+tests/fixtures/* text eol=lf
+# Unified diff context lines may contain a single required space.
+*.patch whitespace=-blank-at-eol

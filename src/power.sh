@@ -34,10 +34,11 @@ finish() {
   fKill "print.sh"
   rm -f -- "$HOST_API_SOCKET" "$HOST_AGENT_SOCKET"
 
-  if ! waitQemuExit 10; then
+  if waitQemuExit 10; then
+    platformSealArtifacts
+  else
     warn "Timed out while waiting for $(app) to exit!"
   fi
-
   stopConsole
   echo
 
@@ -54,6 +55,8 @@ sendGuestShutdown() {
 
   local pid="$1"
   local response
+
+  platformGuestShutdown "$pid" && return 0
 
   # Virtual DSM ignores ACPI powerdown, so graceful shutdown must go through
   # the qemu-host guest API exposed on the Unix socket.

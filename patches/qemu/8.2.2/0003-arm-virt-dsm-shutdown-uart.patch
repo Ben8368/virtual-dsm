@@ -1,0 +1,64 @@
+diff --git a/hw/arm/virt.c b/hw/arm/virt.c
+--- a/hw/arm/virt.c
++++ b/hw/arm/virt.c
+@@ -1119,14 +1119,15 @@
+     g_free(nodename);
+ }
+ 
+-static void create_dsm_uart(const VirtMachineState *vms, MemoryRegion *mem)
+-{
+-    hwaddr base = vms->memmap[VIRT_DSM_UART].base;
++static void create_dsm_uart(const VirtMachineState *vms, MemoryRegion *mem,
++                            unsigned index)
++{
++    hwaddr base = vms->memmap[VIRT_DSM_UART].base + index * 0x10000;
+     hwaddr size = vms->memmap[VIRT_DSM_UART].size;
+-    int irq = vms->irqmap[VIRT_DSM_UART];
++    int irq = vms->irqmap[VIRT_DSM_UART] + index * 3;
+     const char compat[] = "snps,dw-apb-uart";
+     MachineState *ms = MACHINE(vms);
+-    char *nodename;
++    char *nodename, *alias;
+     uint32_t reg_shift = 2;
+     uint32_t reg_io_width = 4;
+     uint32_t clock_frequency = 1843200;
+@@ -1134,7 +1135,7 @@
+ 
+     serial_mm_init(mem, base, reg_shift,
+                    qdev_get_gpio_in(vms->gic, irq), 115200,
+-                   serial_hd(1), DEVICE_LITTLE_ENDIAN);
++                   serial_hd(index + 1), DEVICE_LITTLE_ENDIAN);
+     memory_region_init_io(id_regs, NULL, &dsm_uart_id_ops, NULL,
+                           "dsm-research-uart-id", 8);
+     memory_region_add_subregion(mem, base + 0xf4, id_regs);
+@@ -1156,10 +1157,14 @@
+     qemu_fdt_setprop(ms->fdt, nodename, "snps,uart-16550-compatible",
+                      NULL, 0);
+     qemu_fdt_setprop_string(ms->fdt, nodename, "status", "okay");
+-    qemu_fdt_add_subnode(ms->fdt, "/aliases");
+-    qemu_fdt_setprop_string(ms->fdt, "/aliases", "serial0", nodename);
+-    qemu_fdt_setprop_string(ms->fdt, "/chosen", "stdout-path",
+-                            "/serial@b000000:115200n8");
++    if (index == 0) {
++        qemu_fdt_add_subnode(ms->fdt, "/aliases");
++        qemu_fdt_setprop_string(ms->fdt, "/chosen", "stdout-path",
++                                "/serial@b000000:115200n8");
++    }
++    alias = g_strdup_printf("serial%u", index);
++    qemu_fdt_setprop_string(ms->fdt, "/aliases", alias, nodename);
++    g_free(alias);
+     g_free(nodename);
+ }
+ 
+@@ -2528,6 +2533,10 @@
+     fdt_add_pmu_nodes(vms);
+ 
+     create_uart(vms, VIRT_UART, sysmem, serial_hd(0));
+-    create_dsm_uart(vms, sysmem);
++    create_dsm_uart(vms, sysmem, 0);
++    /* Stock DS124 reboot syscall writes ttyS1 before kernel_power_off().
++     * Register a real MMIO port: an unprobed 8250 placeholder has NULL
++     * iobase and faults in io_serial_out. No microcontroller emulation. */
++    create_dsm_uart(vms, sysmem, 1);
+     create_dsm_ahci(vms, sysmem);
+     create_dsm_xhci(vms);
