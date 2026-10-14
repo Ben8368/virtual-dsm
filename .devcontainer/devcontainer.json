@@ -1,0 +1,15 @@
+{
+  "name": "Virtual DSM",
+  "service": "dsm",
+  "forwardPorts": [5000],
+  "portsAttributes": {
+    "5000": {
+      "label": "Web",
+      "onAutoForward": "notify"
+    }
+  },
+  "otherPortsAttributes": {
+    "onAutoForward": "ignore"
+  }, 
+  "dockerComposeFile": "codespaces.yml"
+}
