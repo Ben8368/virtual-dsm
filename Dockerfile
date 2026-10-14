@@ -38,6 +38,7 @@ RUN <<EOF
     util-linux \
     python3-msgpack \
     python3-pysodium \
+    openssh-client \
     libslirp0 \
     libpixman-1-0
 
@@ -57,6 +58,7 @@ RUN <<EOF
 EOF
 
 COPY --chmod=755 ./src /run/
+COPY --chmod=755 ./scripts/package-readiness.py /run/package-readiness.py
 COPY --chmod=755 ./web /var/www/
 COPY --chmod=744 ./web/conf/nginx.conf /etc/nginx/default.conf
 COPY --chmod=755 --from=qemux/qemu-host:2.06 /qemu-host.bin /run/host.bin

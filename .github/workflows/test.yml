@@ -30,6 +30,9 @@ jobs:
         run: |
           bash tests/platform.sh
           bash tests/pat-acquisition.sh
+          python3 tests/package-readiness.py
+          python3 tests/guest-integrations.py
+          bash tests/guest-clock.sh
       - name: Clean apply production patches to QEMU v8.2.2
         run: bash tests/qemu-patches.sh
       - name: Synthetic read-only image validation
@@ -47,6 +50,6 @@ jobs:
           python3 tests/proprietary-artifacts.py
       - name: Shellcheck production and research
         run: |
-          shellcheck -x src/*.sh src/platform/*.sh research/arm64/*.sh research/arm64/tests/*.sh scripts/*.sh tests/*.sh
+          shellcheck -x src/*.sh src/platform/*.sh src/guest/*.sh research/arm64/*.sh research/arm64/tests/*.sh scripts/*.sh tests/*.sh
       - name: Whitespace
         run: git diff --check

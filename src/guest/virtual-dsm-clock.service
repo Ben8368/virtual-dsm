@@ -1,0 +1,15 @@
+[Unit]
+Description=Initialize ARM DSM clock from host launch timestamp
+DefaultDependencies=no
+After=local-fs.target
+Before=sysinit.target time-sync.target ntpd.service ntp.service nginx.service synopkgctl.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/libexec/virtual-dsm/clock.sh
+RemainAfterExit=yes
+StandardOutput=journal+console
+StandardError=journal+console
+
+[Install]
+WantedBy=sysinit.target

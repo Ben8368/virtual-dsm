@@ -19,7 +19,7 @@ none
 -initrd
 /storage/DSM_DS124_72806.initrd
 -append
-earlycon=uart8250,mmio32,0x0b000000 console=ttyS0,115200 initcall_debug keep_bootcon ignore_loglevel loglevel=8 printk.time=1 rdinit=/init pty.legacy_count=0 root=/dev/sata1p1 libata.force=noncq
+earlycon=uart8250,mmio32,0x0b000000 console=ttyS0,115200 initcall_debug keep_bootcon ignore_loglevel loglevel=8 printk.time=1 rdinit=/init pty.legacy_count=0 root=/dev/sata1p1 libata.force=noncq vdsm.host_epoch=1704067200
 -nographic
 -monitor
 none

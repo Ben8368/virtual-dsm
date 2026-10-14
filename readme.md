@@ -14,6 +14,9 @@
 
 Virtual DSM in a Docker container.
 
+For local builds and Surveillance Station troubleshooting, see
+[package installation](docs/package-installation.md).
+
 The image targets both `linux/amd64` and `linux/arm64` container hosts.
 `DSM_PLATFORM=virtualdsm` remains the stable default x86 VirtualDSM guest;
 on an ARM64 host that guest uses much slower QEMU TCG.
@@ -22,7 +25,8 @@ on an ARM64 host that guest uses much slower QEMU TCG.
 Automatic preparation from the exact official DS124 DSM 7.2.2-72806 PAT is
 supported. Mutable runtime disks are preserved, and the official local setup
 and single-disk Basic/Btrfs path have demonstrated persistent configuration and
-data through two clean restart cycles. Storage Manager currently needs manual installation
+data through two clean restart cycles. New seeds stage the PAT's bundled packages
+and install Storage Manager through the normal package CLI. Existing roots need manual installation
 from the same PAT; this is a DSM-compatible virtual layout with partially unused
 capacity. A transient module-loading watchdog warning prevents full Phase 3
 stability acceptance; ARM support remains experimental. An x86_64 host uses slow TCG with

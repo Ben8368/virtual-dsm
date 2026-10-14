@@ -1,0 +1,20 @@
+services:
+  dsm:
+    build: .
+    image: virtual-dsm:local
+    environment:
+      DSM_PLATFORM: "${DSM_PLATFORM:-virtualdsm}"
+      DISK_SIZE: "${DISK_SIZE:-32G}"
+      RAM_SIZE: "${RAM_SIZE:-2G}"
+      CPU_CORES: "${CPU_CORES:-2}"
+      NETWORK: user
+      KVM: N
+      USER_PORTS: "22"
+    ports:
+      - "127.0.0.1:5000:5000"
+      - "127.0.0.1:5001:5001"
+      - "127.0.0.1:5022:22"
+    volumes:
+      - "${DSM_STORAGE:-./storage-local}:/storage"
+    restart: unless-stopped
+    stop_grace_period: 2m

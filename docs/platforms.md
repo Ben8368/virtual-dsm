@@ -58,6 +58,10 @@ cache/legacy policy. See the [Phase 3 local setup and storage evidence](../resea
 for the official administrator wizard, bundled Storage Manager prerequisite and
 single-disk Basic/Btrfs creation.
 
+New seeds include clock initialization and bundled-package handoff, described in
+[package installation](package-installation.md). Older setup evidence predates
+these integrations; existing runtime disks require the documented explicit migration.
+
 ```text
 /storage/DSM_DS124_72806.kernel
 /storage/DSM_DS124_72806.initrd

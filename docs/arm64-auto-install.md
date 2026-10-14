@@ -33,9 +33,12 @@ record subset recreate /.syno/patch. VERSION is never fabricated; root/junior
 build, unique, smallfixnumber, packing and packing_id are checked offline.
 Filesystem UUID/hash seed, superblock write time and inode access/change/creation times are fixed for
 deterministic builds; original archive modification times remain unchanged.
-Kernel/initramfs/DSM binaries/modules remain unmodified. The sole integration
-entry is `/usr/lib/modules-load.d/70-network-0007-research-usb-cdc.conf`, containing
-`cdc_ether` and a newline, promoted exactly from the validated Phase 1 image.
+Kernel/initramfs/DSM binaries/modules remain unmodified. The CDC integration
+remains `/usr/lib/modules-load.d/70-network-0007-research-usb-cdc.conf`.
+New roots also stage authenticated PAT packages and project-owned clock and
+Storage Manager one-shot services; see [package installation](package-installation.md).
+The manifest records these optional integrations without changing legacy
+provenance checks. Existing runtime roots are never rewritten to add them.
 
 The public kernel/initrd/system.img names remain unchanged. They resolve through
 one atomic `DSM_DS124_72806.arm-current` generation pointer, with

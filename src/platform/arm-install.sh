@@ -48,8 +48,8 @@ platformBuildArtifacts() (
     selectDsmMirror || return $?
     URL="$mirror/release/7.2.2/72806/DSM_DS124_72806.pat"
   fi
-  if (( $(df --output=avail -B 1 "$STORAGE" | tail -n 1) < 6442450944 )); then
-    error 'Not enough free disk space: ARM preparation requires at least 6 GiB.'; return 94
+  if (( $(df --output=avail -B 1 "$STORAGE" | tail -n 1) < 8589934592 )); then
+    error 'Not enough free disk space: ARM preparation with bundled packages requires at least 8 GiB.'; return 94
   fi
   incoming="$workspace/source.pat"
   downloadPat "$incoming" || return $?

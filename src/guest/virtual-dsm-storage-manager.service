@@ -1,0 +1,16 @@
+[Unit]
+Description=Install DS124 PAT Storage Manager prerequisite
+Requires=pkg-root.target
+After=pkg-root.target virtual-dsm-clock.service
+ConditionPathExists=/usr/local/share/virtual-dsm/StorageManager.sha256
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/libexec/virtual-dsm/storage-manager.sh
+RemainAfterExit=yes
+TimeoutStartSec=1800
+StandardOutput=journal+console
+StandardError=journal+console
+
+[Install]
+WantedBy=multi-user.target

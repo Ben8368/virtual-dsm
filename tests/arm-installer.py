@@ -117,7 +117,9 @@ with tempfile.TemporaryDirectory(prefix='arm-synthetic-') as tmp:
                 'model.dtb': b'\xd0\x0d\xfe\xed' + b'synology_rtd1619b_ds124\0',
                 'uboot_DS124.bin': b'FAKE UBOOT', 'uboot_do_upd.sh': b'FAKE BOOT',
                 'DiskCompatibilityDB.tar': b'FAKE DB', 'Synology.sig': b'FAKE SIGNATURE',
-                'checksum.syno': b''.join(n.encode() + b' original checksum record\n' for n in ('VERSION', 'zImage', 'rd.bin', 'updater', 'model.dtb', 'hda1.tgz'))}
+                'checksum.syno': b''.join(n.encode() + b' original checksum record\n' for n in ('VERSION', 'zImage', 'rd.bin', 'updater', 'model.dtb', 'hda1.tgz')),
+                'packages/StorageManager-rtd1619b-1.0.0-00502.spk': b'SYNTHETIC STORAGE PACKAGE',
+                'packages/ActiveInsight-armv8-1.0.spk': b'SYNTHETIC OPTIONAL TELEMETRY'}
     pat = work / 'synthetic.pat'
     pat.write_bytes(tar_bytes([(n, d, tarfile.REGTYPE, {'mtime': 0}) for n, d in payloads.items()]))
     rejected(lambda: builder.identity(pat))
@@ -129,6 +131,7 @@ with tempfile.TemporaryDirectory(prefix='arm-synthetic-') as tmp:
         extracted = directory / 'pat'
         extracted.mkdir()
         for name, data in payloads.items():
+            (extracted / name).parent.mkdir(parents=True, exist_ok=True)
             (extracted / name).write_bytes(data)
         builder.build(pat, directory)
     first = work / 'first'
@@ -137,6 +140,17 @@ with tempfile.TemporaryDirectory(prefix='arm-synthetic-') as tmp:
     manifest = json.loads((generated / 'manifest.json').read_text())
     assert manifest['geometry']['partition_sectors'] == 4190917
     assert manifest['pat_sha256'] == contract.sha256(pat)
+    assert list(manifest['integrations']['bundled_packages']) == ['StorageManager-rtd1619b-1.0.0-00502.spk']
+    # Inspect the built disk, not just the integration source tree.
+    from dissect.extfs import ExtFS
+    from dissect.util.stream import RangeStream
+    with (generated / 'system.img').open('rb') as fh:
+        offset, length = builder.validator.first_partition(fh)
+        ext = ExtFS(RangeStream(fh, offset, length))
+        assert builder.validator.resolve(ext, '/.SynoUpgradePackages/StorageManager-rtd1619b-1.0.0-00502.spk').open().read() == b'SYNTHETIC STORAGE PACKAGE'
+        assert b'date -u -s' in builder.validator.resolve(ext, '/usr/local/libexec/virtual-dsm/clock.sh').open().read()
+        assert builder.validator.resolve(ext, '/usr/lib/systemd/system/sysinit.target.wants/virtual-dsm-clock.service').size
+        assert builder.validator.resolve(ext, '/usr/lib/systemd/system/multi-user.target.wants/virtual-dsm-storage-manager.service').size
     # Exact original updater algorithm oracle: filenames, bytes, checksum, modes.
     entries = builder.pat_entries(pat)
     excluded = {'hda1.tgz', 'indexdb.txz', 'synohdpack_img.txz', 'checksum.syno', 'Synology.sig', 'updater_manutil', 'createvolume', 'SkipCheckPackingMatch', 'autonano.pat', 'RedBoot.msys', 'configupdate'}

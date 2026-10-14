@@ -112,6 +112,7 @@ docker-compose.local.yml
 ##############################
 
 storage/
+storage-local/
 windows/
 downloads/
 

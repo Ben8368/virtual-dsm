@@ -35,6 +35,8 @@ printf 'stage_loaded=install\n' > "$tmp/install.sh"
 if (DSM_PLATFORM='rtd1619b;touch injected'; platformInit) >/dev/null 2>&1; then exit 1; fi
 if (DSM_PLATFORM=unknown; platformInit) >/dev/null 2>&1; then exit 1; fi
 DSM_PLATFORM=rtd1619b
+# Stable host launch time for the ARM argument snapshot.
+date() { if [[ "$*" == '-u +%s' ]]; then printf '1704067200\n'; else command date "$@"; fi; }
 platformInit
 [[ "$GUEST_ARCH:$PLATFORM:$QEMU_BIN:$MACHINE:$BOOT_MODE" == arm64:arm64:qemu-system-aarch64:virt:direct ]]
 HOST_ARCH=amd64 CPU_CORES=2 RAM_SIZE=2G APP='Virtual DSM' PROCESS=virtual-dsm
@@ -60,6 +62,7 @@ if (DSM_BIND='0.0.0.0,hostfwd=tcp::22-:22'; platformNetworkBackend) >/dev/null 2
 if (MAC='00:16:3e:12:34:56,netdev=bad'; platformNetworkDevice) >/dev/null 2>&1; then exit 1; fi
 if (CPU_CORES='2 -device e1000'; platformConfigureCpu) >/dev/null 2>&1; then exit 1; fi
 if (ARGUMENTS='-machine q35'; platformConfigureArguments) >/dev/null 2>&1; then exit 1; fi
+if (date() { printf '0\n'; }; platformConfigureArguments) >/dev/null 2>&1; then exit 1; fi
 if (DHCP=Y; platformConfigureNetwork) >/dev/null 2>&1; then exit 1; fi
 if (NETWORK=tap; platformConfigureNetwork) >/dev/null 2>&1; then exit 1; fi
 if (QEMU_BIN='bash -c injected'; platformValidateBinary) >/dev/null 2>&1; then exit 1; fi

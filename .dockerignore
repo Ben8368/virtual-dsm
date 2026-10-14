@@ -18,6 +18,8 @@ docker-compose.yaml
 # Never send proprietary DSM artifacts or research builds into Docker context.
 research/
 storage/
+storage-local/
+compose.local.yml
 tests/
 *.pat
 *.img

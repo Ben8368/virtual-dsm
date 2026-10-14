@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Production DS124 PAT builder. No research runtime dependency or guest executables."""
+"""Production DS124 PAT builder. No research dependency; never executes guest binaries."""
 import argparse
 import importlib.util
 import json
@@ -15,6 +15,7 @@ import tarfile
 import uuid
 
 import arm_runtime as runtime
+from guest_integrations import integrate
 
 
 class NoArtifacts(ValueError):
@@ -172,6 +173,7 @@ def build(pat, workspace):
     for name, (_, data) in entries.items():
         if name.startswith('/') or '..' in name.split('/') or (extracted / name).read_bytes() != data:
             raise ValueError('PAT extraction/metadata mismatch.')
+    integrations = integrate(staging, entries)
     patch = workspace / 'patch.tar'
     selected = patch_archive(entries, patch)
     if (staging / '.syno').is_symlink() or (staging / '.syno/patch').exists():
@@ -199,6 +201,12 @@ def build(pat, workspace):
     for member in members:
         if member.isdir():
             os.utime(staging / member.name, (member.mtime, member.mtime), follow_symlinks=False)
+    original_names = {m.name.removeprefix('./').rstrip('/') for m in members}
+    for parent, directories, files in os.walk(staging, followlinks=False):
+        for name in directories + files:
+            path = Path(parent) / name
+            if path.relative_to(staging).as_posix() not in original_names:
+                os.utime(path, (epoch, epoch), follow_symlinks=False)
     for integration in (staging, staging / '.syno', staging / '.syno/patch', activation):
         os.utime(integration, (epoch, epoch), follow_symlinks=False)
     progress('Building system filesystem')
@@ -268,7 +276,8 @@ def build(pat, workspace):
     manifest['patch_selected'] = selected
     manifest['pat_sha256'] = digest
     manifest['source_url'] = os.environ.get('ARM_SOURCE_URL', '')
-    manifest['provenance'] = 'official PAT; installed root; CDC modules-load integration only'
+    manifest['provenance'] = 'official PAT; installed root; CDC, clock and bundled-package integrations'
+    manifest['integrations'] = integrations
     atomic_json(generation / 'manifest.json', manifest)
 
 

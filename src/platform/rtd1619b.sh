@@ -144,10 +144,15 @@ platformConfigureArguments() {
   }
   local ram="${RAM_SIZE^^}"
   ram="${ram%B}"
+  local host_epoch
+  host_epoch=$(date -u +%s)
+  if [[ ! "$host_epoch" =~ ^[0-9]{10}$ ]] || (( host_epoch < 1704067200 || host_epoch > 4102444800 )); then
+    error 'Host UTC clock must be correct before launching ARM DSM (2024-2100)'; return 64
+  fi
   QEMU_ARGS=(-machine "virt,gic-version=3" "${ARM_CPU_ARGS[@]}" -m "$ram"
     -name "${APP// /-},process=$PROCESS" -pidfile "$QEMU_PID"
     -nic none -kernel "$KERNEL_IMAGE" -initrd "$INITRD_IMAGE"
-    -append 'earlycon=uart8250,mmio32,0x0b000000 console=ttyS0,115200 initcall_debug keep_bootcon ignore_loglevel loglevel=8 printk.time=1 rdinit=/init pty.legacy_count=0 root=/dev/sata1p1 libata.force=noncq'
+    -append "earlycon=uart8250,mmio32,0x0b000000 console=ttyS0,115200 initcall_debug keep_bootcon ignore_loglevel loglevel=8 printk.time=1 rdinit=/init pty.legacy_count=0 root=/dev/sata1p1 libata.force=noncq vdsm.host_epoch=$host_epoch"
     -nographic -monitor none -serial null -serial stdio -serial null -no-reboot
     -qmp "unix:$QEMU_DIR/arm-qmp.sock,server=on,wait=off"
     "${ARM_STORAGE_ARGS[@]}" "${ARM_NETWORK_ARGS[@]}")
