@@ -50,8 +50,8 @@ and single-disk Basic/Btrfs path have demonstrated persistent configuration and
 data through two clean restart cycles. New seeds stage the PAT's bundled packages
 and install Storage Manager through the normal package CLI. Existing roots need manual installation
 from the same PAT; this is a DSM-compatible virtual layout with partially unused
-capacity. A transient module-loading watchdog warning prevents full Phase 3
-stability acceptance; ARM support remains experimental. An x86_64 host uses slow TCG with
+capacity. ARM support remains experimental; production stability and lifecycle
+evidence is recorded in the Phase 3 acceptance notes below. An x86_64 host uses slow TCG with
 `max,lpa2=off`; an ARM64 host can select KVM only after a successful host/guest
 compatibility probe. ARM64 KVM runtime still needs hardware validation.
 See [platform configuration and automatic DS124 preparation](docs/platforms.md)

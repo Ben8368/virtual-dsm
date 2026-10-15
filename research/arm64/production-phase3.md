@@ -327,10 +327,249 @@ watchdog acceptance criterion was used to seek a passing result.
 
 Highest demonstrated classification: **F4**. Official setup, persistent
 configuration and a DSM-created data volume survive two clean restart cycles
-and one controlled timeout recovery, but strict stability acceptance remains
-incomplete. Next task: investigate the transient module-loading watchdog soft
-lockup and complete Phase 3 F5 stability acceptance.
+and one controlled timeout recovery. The DC ZVA TCG mitigation graduated as
+QEMU patch 0004 (watchdog **L4**). Management HTTP cold-boot readiness under
+production 0004 answers in ~7–8 minutes; earlier diagnostic 0/5 scores were
+observe-budget artefacts. Strict F5 remains incomplete pending a working
+disposable administrator session for stock UI shutdown. See
+`phase3-http-readiness.md`.
 
+
+## 2026-10-15 Auth 499 classification
+
+The controlled DS124 DSM 7.2.2-72806 reproduction classifies **OTHER**:
+DSM login services were not ready. At `2026-10-15T03:19:54.108315Z`, the single
+POST login attempt returned API 499 while HTTP/HTTPS returned 200 and
+`configured=true`; PostgreSQL was still inactive. The shipped login frontend
+maps 499 to `error_system_not_ready`, separately from 400/401/407/408.
+Stock systemd logs reached `syno-login.target` (Web console login available)
+at `03:20:26Z`; PostgreSQL became ready at `03:21:55Z`. There was no new PAM
+authentication entry for that premature attempt. This is independent of HTTP
+readiness and is not evidence that QEMU or networking regressed.
+
+`phase3local` exists, is AUTH_LOCAL, Expired=false, has no shadow lock prefix,
+and belongs to administrators. The retained old secret does not match its
+stored hash; that separate drift does not explain the observed 499. The
+AutoBlockIP table was empty. Installed `synoautoblock --help` confirms a
+`--deny ip` check; it returned rc=0 (not denied) for the slirp peer 10.0.2.2.
+No auto-block reset or global security change was performed.
+
+On a fresh disposable copy, the established stock-initramfs `rdinit=/bin/sh`
+maintenance path mounted p1 and ran exact installed `synouser`, `synogroup`,
+and `synoautoblock` help. Temporary proc/sys/dev mounts, tmpfs `/run`, and
+`/run/synosdk/lock` allowed stock user/group database rebuild and queries.
+`phase3f51015` was created with `synouser --add`; a fresh random secret was set
+with `synouser --filesetpw` using its private file input, removed immediately.
+No direct passwd/shadow/group edits were made. `synogroup --memberadd`
+returned 1, but both `synouser --get` and `synogroup --get administrators`
+confirmed actual membership. The user is AUTH_LOCAL and Expired=false;
+its fresh secret matches the stored hash. The password is kept only at
+`research/arm64/work/phase3-f5/temp-admin-password.txt` (0600, ignored);
+contents, hashes, sessions, and payloads are excluded from evidence.
+
+The maintenance root was fully unmounted before guest poweroff. Kernel and
+initrd SHA256 remain the official values. A separate copy booted through
+the unchanged production entrypoint for normal-login validation: HTTP/HTTPS
+200, configured=true and PostgreSQL active at `2026-10-15T03:45:51Z`
+(572.4 host seconds); stock login target reached at `03:44:10Z`. Windows
+localhost access also returned HTTP 200. Its complete current serial log has
+zero soft/hard lockup, watchdog BUG, RCU stall, Oops, kernel BUG, panic, NULL
+pointer and queued_write_lock_slowpath matches. This boot is not strict Boot 1.
+The stopped prepared copy's persistence marker was read without mounting the
+volume, using read-only btrfs restore of subvolume 256; SHA256 equals the
+required `85c85894c2c5e1168f2c046c3d23dbc9dddd57fd8d6ef0e8c7f37c49d62b7e31`.
+The protected
+configured source `/var/lib/vdsm-phase3/phase3-acceptance-ready` has SHA256
+`60f97e39a884356677a1ed27d65112c2045d9b27841c4aeb8a7ab0dd7603db42`
+and was only read; the post-work source hash matches the pre-work value.
+At that diagnostic checkpoint, strict Boot 1–3 had not started: successful normal browser
+login, two user UI shutdowns, and all persistence/stability gates remain
+required. The temporary account and secret remain because F5 has not passed.
+
+The subsequent browser connection refusal was a host-lifecycle interruption:
+WSL systemd stopped Docker at `2026-10-15T03:48:50Z`, and the normal-login
+container was later reported exited (255), leaving port 15840 without a
+listener. This is separate from Auth 499 and is not a demonstrated DSM or
+networking regression. The same disposable login-validation copy was restarted
+at `03:55:09Z` with the unchanged production image; a hidden Windows-owned
+`sleep infinity` WSL process keeps the distro session alive during manual
+validation. This interrupted copy is excluded from strict F5. The clean
+account-prepared copy remains available for a fresh acceptance clone.
+Recovery reached HTTP/HTTPS 200, configured=true and PostgreSQL active at
+`2026-10-15T04:04:22Z` (553.8 host seconds); the stock login target was
+available at `04:02:40Z`. Windows localhost returned 200 again. Full recovery
+boot logs contain zero matches for the stability fault signatures above.
+At that recovery checkpoint, normal user login was unconfirmed and strict F5 had not started.
+Evidence: `browser-refused-cause.json`, `wsl-docker-previous-boot.log`, and
+`account-normal-interrupted.log` in the ignored evidence directory.
+
+Private evidence is under ignored `research/arm64/work/phase3-f5/`:
+`auth-classification.json`, `controlled-auth-result.json`,
+`live-auth-evidence.json`, `auth-services-static.json`,
+`account-offline-verified.json`, and complete diagnostic serial logs.
+The production QEMU SHA256 is
+`a6d76b56ec166c8df897387cbc708fffbfd9d1600dc9a0700cb7226671ecbfda`;
+8.2.2 includes production 0001–0004 and both DC-ZVA invalidation symbols.
+All four requested shellcheck/smoke/patch-apply/diff checks returned 0.
+
+## 2026-10-15 Strict F5 attempt after successful local login
+
+The user confirmed a successful normal DSM browser login for `phase3f51015`;
+the confirmation was recorded at `2026-10-15T04:26:23.8187658Z`. The login evidence
+contains only success, timestamp and username. No session or authentication
+payload was retained.
+
+A fresh strict candidate was copied from the stopped account-prepared clone.
+Read-only e2fsck found quota accounting discrepancies without inode, directory
+or reference-count errors. Standard e2fsck corrected quotas only on the new
+disposable candidate; a subsequent full read-only check returned 0. The
+protected source and account-prepared copy were not modified. Read-only Btrfs
+restore found the required marker SHA256, PostgreSQL `PG_VERSION` and an
+8192-byte `global/pg_control`. Offline root metadata confirms configured state,
+the enabled temporary administrator and administrator membership.
+
+Strict Boot 1 started at `2026-10-15T04:30:06Z` using the production entrypoint,
+production image containing 0001–0004, `DSM_PLATFORM=rtd1619b`, TCG multi and
+2 vCPU. The separate strict clone and complete evidence are recorded under
+ignored `research/arm64/work/phase3-f5/`. A disabled stock Task Scheduler task
+is manually invoked to measure guest uptime, service/process state, mounted
+writable volume and marker SHA. It has no enabled schedule or boot trigger.
+Boot 1 first returned HTTP 200 at 401.247 host seconds and PostgreSQL active
+at 562.833 host seconds. After scemd also reached systemd active, the strict
+observation baseline was guest uptime 708.40 seconds (guest UTC 04:42:00Z).
+Earlier provisional samples with scemd activating are retained and excluded
+from the observation duration. Required fault scans still cover the complete
+boot log without signature exemptions.
+Both acceptance shutdowns must still be performed by the user in DSM UI.
+No strict acceptance promotion is implied by these preparatory checks.
+
+Boot 1 passed its active gates at `2026-10-15T05:13:30Z`: 1877.97 guest
+seconds after the full-service baseline, 30 sequential HTTP GET responses
+all 200, HTTPS 200, PostgreSQL and scemd active, volume1 normal and writable
+with actual write probes, and the exact required marker SHA256 unchanged.
+The complete 437413-byte boot/observation log had zero soft/hard lockup,
+watchdog BUG, RCU stall, Oops, kernel BUG, panic, NULL pointer and
+queued_write_lock_slowpath matches. Private evidence includes
+`boot1-pre-shutdown-gates.json`, `boot1-guest-probes.jsonl`, `boot1-http-30.json`
+and `boot1-complete.log`. At that checkpoint UI shutdown #1 was required;
+neither clean shutdown had been counted and Boot 2/3 had not started. The temporary account and
+password file remain because strict F5 has not completed.
+
+
+### Strict F5 shutdown #1 and Boot 2 restart evidence
+
+The user confirmed DSM UI shutdown #1. At 2026-10-15T06:14:46Z the
+production lifecycle receipt recorded guest=true, reason=guest-shutdown,
+clean=true, container_requested=false, outcome=guest-poweroff and QEMU rc=0;
+the container exited 0. Complete Boot 1 logs include systemd shutdown,
+All filesystems unmounted and reboot: Power down, with zero complete-log
+stability signature matches. The verifier initially misclassified guest
+systemd PID 1's cleanup SIGKILL messages as host fallback; source attribution
+was corrected in the ignored verifier, with all matching lines retained in
+shutdown1-signal-provenance.json. No production code or fault scan changed.
+A stopped-clone read-only Btrfs restore confirmed the expected marker SHA256
+in after-shutdown1-persistence.json. Boot 2 restarted the same strict clone
+and production container at 2026-10-15T06:16:54Z; full readiness and the second
+UI shutdown remain pending at this checkpoint. The temporary account and
+password file remain until all strict gates pass.
+
+
+Boot 2 passed its active gates at 2026-10-15T06:27:04Z. First HTTP 200
+was measured at 407.629 host seconds; HTTP/HTTPS 200, configured=true and
+PostgreSQL active were measured together at 537.703 host seconds. Stock
+manual probes verified scemd active, PostgreSQL processes/data, volume1
+normal, unlocked and writable, administrator membership, and the unchanged
+persistence marker SHA256. The same disk inode and artifact generation were
+retained, the launch generation incremented once, and the production binary
+and 0001–0004 identities matched. The complete 242024-byte Boot 2 log had zero
+stability fault signatures. Evidence: boot2-pre-shutdown-gates.json,
+boot2-guest-probes.jsonl, boot2-production-identity.json and boot2-complete.log.
+At this checkpoint, user DSM UI shutdown #2 and Boot 3 remain required.
+
+
+### Strict F5 shutdown #2 and Boot 3 restart evidence
+
+The user confirmed normal DSM UI shutdown #2. At 2026-10-15T06:45:50Z
+the production receipt recorded clean guest-shutdown / guest-poweroff,
+QEMU rc=0, container_requested=false; the container also exited 0. Full logs
+show systemd shutdown, all filesystems unmounted and reboot: Power down,
+with no host fallback. Complete Boot 2 logs (362727 bytes) contain zero
+stability fault signatures. Read-only stopped-clone marker extraction again
+matched the expected SHA256. Evidence: shutdown2-receipt.json,
+shutdown2-manifest.json, shutdown2-qmp-live.log and
+after-shutdown2-persistence.json. Boot 3 restarted the same strict clone at
+2026-10-15T06:46:17Z. Full readiness and at least 1800 guest seconds of
+observation remain pending at this checkpoint; cleanup is not yet authorized.
+
+
+### Strict F5 completed acceptance evidence — 2026-10-15
+
+The complete three-boot sequence passed on the same disposable configured
+clone, with both shutdowns initiated by the user through DSM UI. Boot 1/3
+observations started only after PostgreSQL and scemd were active and volume1
+was mounted, healthy and writable. Guest durations use /proc/uptime.
+
+| Boot | First HTTP 200 (host s) | HTTP/HTTPS/configured/pgsql ready (host s) | HTTPS | configured | PostgreSQL / scemd | volume1 | Observation (guest s) |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 1 | 401.247 | 562.833 | 200 | true | active | normal / writable | 1877.97 |
+| 2 | 407.629 | 537.703 | 200 | true | active | normal / writable | 31.40 |
+| 3 | 391.015 | 533.529 | 200 | true | active | normal / writable | 1869.03 |
+
+Boot 1 and Boot 3 each passed 30 sequential HTTP GETs (30/30 HTTP 200)
+and HTTPS 200. Every complete boot log, including shutdowns #1/#2, had zero
+soft/hard lockup, watchdog BUG, RCU stall, Oops, kernel BUG, panic, NULL pointer
+and queued_write_lock_slowpath matches; no signatures were exempted.
+
+Both shutdowns recorded systemd shutdown, All filesystems unmounted,
+reboot: Power down, QMP guest-shutdown, QEMU/container rc=0 and no host
+fallback or QEMU SIGKILL. Production guest-poweroff timestamps were
+2026-10-15T06:14:46Z and 2026-10-15T06:45:50Z.
+
+The marker SHA256 before Boot 1, after restart #1, after restart #2 and
+final Boot 3 was unchanged:
+
+`85c85894c2c5e1168f2c046c3d23dbc9dddd57fd8d6ef0e8c7f37c49d62b7e31`
+
+All boots used production QEMU 8.2.2 (v8.2.2-dirty), SHA256
+`a6d76b56ec166c8df897387cbc708fffbfd9d1600dc9a0700cb7226671ecbfda`,
+with the exact 0001–0004 series, TCG multi, 2 vCPU, normal rdinit=/init and
+900-second HEALTHCHECK start-period. Cache hits and unchanged immutable
+artifacts/generation pointer confirmed no PAT extraction or reconstruction.
+Launch generations were 10, 11 and 12. Inode capture began after Boot 1
+while stopped (before Boot 2); that inode was retained through Boot 3.
+Boot 1 continuity is established by the unchanged container bind mount, disk
+path, generation, manifests and marker; no Boot 1 start inode was invented.
+The protected source was rehashed read-only and remained unchanged.
+
+After strict acceptance, stock synouser --del removed phase3f51015 from the
+acceptance clone and running diagnostic copy. Stock user enumeration/get,
+id and synogroup --get administrators verified account and membership removal.
+PostgreSQL/scemd and the marker remained valid after removal. A 423-file
+source/evidence scan found no plaintext secret outside its designated file;
+three random overwrites, a zero overwrite, fsync and unlink removed that file,
+with Windows and WSL absence checks passing. The disabled manual cleanup task
+remains on each disposable running clone: task deletion after user removal
+was denied (code 105 captured on the strict clone). It contains no password
+and has no scheduled or boot execution. Offline preparation copies remain
+research snapshots, outside the accepted running clone.
+
+Private evidence: strict-f5-pass-before-cleanup.json,
+final-protected-source-verification.json, temporary-admin-cleanup.json,
+final-secret-evidence-scan.json and strict-f5-final.json under the ignored
+work/phase3-f5 directory. No production file changed during this acceptance
+continuation; the validated production image was reused.
+
+#### Production Integration Phase 4 validation entry
+
+| Workstream | Required evidence / next action | Available boundary |
+| --- | --- | --- |
+| Native ARM64 KVM | ARM64 host, accessible /dev/kvm, actual -accel kvm / -cpu host, official-PAT readiness and lifecycle/stability evidence | Local inventory is x86_64; ARM64 KVM remains unverified |
+| Lifecycle hardening | Evaluate the existing TD-001 shutdown-agent gap; preserve guest-shutdown and rc=0 receipt semantics; keep UI shutdown as proven baseline | Two real UI shutdowns are recorded; Docker stop is not accepted as a replacement |
+| Multi-arch builds | Native amd64/arm64 build jobs, per-architecture patched QEMU identity and smoke checks, manifest platform verification | This run verified an amd64 production image; arm64 build needs its native runner |
+| Release readiness | CI six-job gate, protected-source/secret checks, documentation and experimental ARM boundaries | No push, publication or release was performed |
+
+Phase 4 begins with target-environment validation; these remaining hardware
+and release requirements are not inferred from TCG acceptance.
 
 ## Final cleanup and validation
 
