@@ -35,6 +35,9 @@ For local builds and Surveillance Station troubleshooting, see
 [package installation](docs/package-installation.md).
 For automated checks, image publishing and dependency updates, see [CI setup](docs/ci.md).
 For the JavaScript/TypeScript maintenance assessment, see [web frontend](docs/web-frontend.md).
+AI collaborators start at [AGENTS.md](AGENTS.md); current status is [CONTEXT.md](CONTEXT.md).
+Contribution, attribution trailers and the CI 6/6 traffic light are in
+[CONTRIBUTING.md](CONTRIBUTING.md).
 
 The image targets both `linux/amd64` and `linux/arm64` container hosts.
 `DSM_PLATFORM=virtualdsm` remains the stable default x86 VirtualDSM guest;

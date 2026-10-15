@@ -15,8 +15,27 @@ concurrency:
   cancel-in-progress: ${{ github.event_name != 'workflow_dispatch' }}
 
 jobs:
+  docs:
+    name: Docs governance
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.13'
+      - name: Governance documents
+        run: python3 scripts/governance-docs-check.py
+      - name: Commit attribution hooks
+        run: python3 scripts/git-hooks-test.py
+
   lint:
     uses: ./.github/workflows/check.yml
+
   tests:
     name: Synthetic regression tests
     runs-on: ubuntu-24.04
@@ -36,9 +55,8 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends e2fsprogs
           python -m pip install -r requirements.txt
-      - name: Platform, acquisition, guest and research checks
+      - name: Platform, acquisition and guest checks
         run: |
-          bash research/arm64/tests/smoke.sh
           bash tests/pat-acquisition.sh
           python tests/package-readiness.py
           python tests/guest-integrations.py
@@ -46,14 +64,36 @@ jobs:
       - name: Synthetic image and installer checks (no DSM downloads)
         run: |
           python tests/image-validation.py
-          # Exercise numeric ownership with real privileges in this disposable runner.
-          # fakeroot's tar metadata interception can stall on Ubuntu 24.04.
           sudo "$(command -v python)" tests/arm-installer.py
           python tests/arm-runtime.py
           python tests/x86-installer-regression.py
           python tests/proprietary-artifacts.py
+
+  qemu-patches:
+    name: QEMU patch apply
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
       - name: Clean apply production patches to QEMU v8.2.2
         run: bash tests/qemu-patches.sh
+
+  research-smoke:
+    name: Research smoke
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Research ARM smoke
+        run: bash research/arm64/tests/smoke.sh
+
   images:
-    needs: [lint, tests]
+    name: Production image build
+    needs: [docs, lint, tests, qemu-patches, research-smoke]
     uses: ./.github/workflows/arm-qemu-build.yml

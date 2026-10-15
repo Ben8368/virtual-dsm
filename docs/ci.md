@@ -1,13 +1,18 @@
 # CI and dependency updates
 
 `CI` runs on every push to `master`, every pull request (including Dependabot),
-and manual dispatch. It needs no repository secrets. It runs:
+and manual dispatch. It needs no repository secrets. The workflow exposes six
+checkable jobs (repository traffic light / 6/6):
 
-- Bash syntax, ShellCheck, Hadolint, JSON/YAML parsing and Actionlint.
-- Synthetic platform, acquisition, guest, image and installer regressions,
-  research smoke checks, tracked-artifact policy and pristine QEMU patch checks.
-- Production Docker builds on native Ubuntu 24.04 amd64 and arm64 runners,
-  followed by emulator, shared-library, Python import and default x86 argv checks.
+1. **Docs governance** — `scripts/governance-docs-check.py` and commit-hook regression.
+2. **Lint** — Bash syntax, ShellCheck, Hadolint, JSON/YAML parsing and Actionlint.
+3. **Synthetic regression tests** — platform, acquisition, guest, image and installer checks without DSM downloads.
+4. **QEMU patch apply** — pristine upstream v8.2.2 clean application of `patches/qemu/8.2.2`.
+5. **Research smoke** — `research/arm64/tests/smoke.sh`.
+6. **Production image build** — native Ubuntu 24.04 amd64 and arm64 Docker builds, then emulator, shared-library, Python import and default x86 argv checks.
+
+Human `🚦 Audit Report` review remains required for product source changes and is
+not replaced by a green CI aggregate.
 
 The synthetic tests do not download or redistribute DSM payloads. CI does not
 prove full DSM boot, ARM KVM compatibility or Surveillance Station acceptance;
