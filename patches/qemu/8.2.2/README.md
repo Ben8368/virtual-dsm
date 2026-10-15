@@ -22,13 +22,25 @@ Apply in filename order to upstream v8.2.2, commit
   faults in io_serial_out. This supplies a valid port without emulating microP
   responses. The console stays serial0; the control serial backend is null.
 
+- `0004-tcg-dczva-full-page-code-invalidate.patch`: graduated from research
+  `dcz-full-page-invalidation-candidate.patch`. Generic AArch64 DC ZVA
+  handling: after both normal write probes succeed for RAM that is still
+  NOTDIRTY with DIRTY_MEMORY_CODE clean, conservatively invalidate translated
+  code for the whole target physical page (preserving retaddr / precise-SMC
+  unwind), then reacquire through the ordinary block probe. The architectural
+  zero remains exactly one DC ZVA block. No DSM, DS124 or RTD1619B branding.
+  Watchpoints, permission faults, I/O byte-store fallback and migration/VGA
+  dirty tracking stay on the existing paths.
+
 The old research patch implementations were removed; the research directory
 keeps a pointer. Production and research use `scripts/apply-qemu-patches.sh`.
 The helper checks the exact upstream commit, clean-applies the series in a
-scratch tree, then either applies to pristine hardware files or verifies that
-the whole series is already present byte-for-byte. It never discards source
-changes or accepts a function-name substring as patch identity.
+scratch tree, then either applies to pristine tracked files or verifies that
+the whole series is already present byte-for-byte across virt and TCG sources.
+It never discards source changes or accepts a function-name substring as patch
+identity.
 
 `tests/qemu-patches.sh` separately checks clean application without compilation.
-The native Docker builder compiles only aarch64-softmmu. All three patches are
-mandatory; do not omit LED compatibility because initial HTTP works.
+The native Docker builder compiles only aarch64-softmmu. All four patches are
+mandatory; do not omit LED compatibility because initial HTTP works, and do not
+omit DC ZVA code invalidation when rebuilding production QEMU.

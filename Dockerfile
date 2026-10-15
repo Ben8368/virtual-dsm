@@ -71,6 +71,9 @@ ENV RAM_SIZE="2G"
 ENV CPU_CORES="2"
 ENV DISK_SIZE="256G"
 
-HEALTHCHECK --interval=60s --start-period=45s --retries=2 CMD ["/run/check.sh"]
+# ARM TCG multi cold boots commonly need ~8–15 minutes before management HTTP
+# answers; keep failures from counting until that window elapses. x86 still
+# becomes healthy as soon as check.sh succeeds inside the period.
+HEALTHCHECK --interval=60s --start-period=900s --retries=2 CMD ["/run/check.sh"]
 
 ENTRYPOINT ["/usr/bin/tini", "-s", "/run/entry.sh"]

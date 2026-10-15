@@ -18,4 +18,6 @@ grep -q create_dsm_ahci "$tmp/hw/arm/virt.c"
 grep -q create_dsm_xhci "$tmp/hw/arm/virt.c"
 grep -q create_dsm_syno_leds "$tmp/hw/arm/virt.c"
 grep -q 'create_dsm_uart(vms, sysmem, 1)' "$tmp/hw/arm/virt.c"
+grep -q tb_invalidate_phys_page_dcz "$tmp/accel/tcg/tb-maint.c"
+grep -q tlb_invalidate_code_dcz "$tmp/target/arm/tcg/helper-a64.c"
 echo 'All production patches cleanly apply to pristine QEMU v8.2.2.'

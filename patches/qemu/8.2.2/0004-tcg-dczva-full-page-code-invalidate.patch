@@ -1,0 +1,98 @@
+diff --git a/accel/tcg/cputlb.c b/accel/tcg/cputlb.c
+--- a/accel/tcg/cputlb.c
++++ b/accel/tcg/cputlb.c
+@@ -1584,6 +1584,27 @@
+     return flags ? NULL : host;
+ }
+ 
++/* Called only after the original-address and complete-block write probes.
++ * Never retain host pointers or CPUTLBEntryFull pointers across invalidation. */
++bool tlb_invalidate_code_dcz(CPUArchState *env, vaddr addr, int mmu_idx,
++                              uintptr_t retaddr)
++{
++    CPUTLBEntryFull *full;
++    void *host;
++    int flags = probe_access_internal(env_cpu(env), addr, 0, MMU_DATA_STORE,
++                                     mmu_idx, true, &host, &full, 0, false);
++
++    if (host && (flags & TLB_NOTDIRTY) &&
++        !(flags & (TLB_INVALID_MASK | TLB_MMIO | TLB_DISCARD_WRITE))) {
++        ram_addr_t ram_addr = addr + full->xlat_section;
++        if (!cpu_physical_memory_get_dirty_flag(ram_addr, DIRTY_MEMORY_CODE)) {
++            tb_invalidate_phys_page_dcz(ram_addr, retaddr);
++            return true;
++        }
++    }
++    return false;
++}
++
+ /*
+  * Return a ram_addr_t for the virtual address for execution.
+  *
+diff --git a/accel/tcg/tb-maint.c b/accel/tcg/tb-maint.c
+--- a/accel/tcg/tb-maint.c
++++ b/accel/tcg/tb-maint.c
+@@ -1161,6 +1161,24 @@
+ }
+ 
+ /*
++ * CPU DC ZVA write after both normal write probes succeeded. Invalidate the
++ * code coverage conservatively, retaining the original instruction's retadd
++ * and the precise-SMC unwind in the existing locked helper. No RAM is written.
++ */
++void tb_invalidate_phys_page_dcz(ram_addr_t addr, uintptr_t retaddr)
++{
++    tb_page_addr_t start = addr & TARGET_PAGE_MASK;
++    tb_page_addr_t last = addr | ~TARGET_PAGE_MASK;
++    struct page_collection *pages = page_collection_lock(start, last);
++    PageDesc *p = page_find(addr >> TARGET_PAGE_BITS);
++
++    if (p && p->first_tb) {
++        tb_invalidate_phys_page_range__locked(pages, p, start, last, retaddr);
++    }
++    page_collection_unlock(pages);
++}
++
++/*
+  * Invalidate all TBs which intersect with the target physical
+  * address page @addr.
+  */
+diff --git a/accel/tcg/internal-target.h b/accel/tcg/internal-target.h
+--- a/accel/tcg/internal-target.h
++++ b/accel/tcg/internal-target.h
+@@ -66,6 +66,8 @@
+ void tb_invalidate_phys_range_fast(ram_addr_t ram_addr,
+                                    unsigned size,
+                                    uintptr_t retaddr);
++/* DC ZVA CPU-write invalidation; preserves retaddr for precise SMC. */
++void tb_invalidate_phys_page_dcz(ram_addr_t ram_addr, uintptr_t retaddr);
+ G_NORETURN void cpu_io_recompile(CPUState *cpu, uintptr_t retaddr);
+ #endif /* CONFIG_SOFTMMU */
+ 
+diff --git a/include/exec/cpu_ldst.h b/include/exec/cpu_ldst.h
+--- a/include/exec/cpu_ldst.h
++++ b/include/exec/cpu_ldst.h
+@@ -468,6 +468,8 @@
+     return g2h(env_cpu(env), addr);
+ }
+ #else
++bool tlb_invalidate_code_dcz(CPUArchState *env, vaddr addr, int mmu_idx,
++                              uintptr_t retaddr);
+ void *tlb_vaddr_to_host(CPUArchState *env, abi_ptr addr,
+                         MMUAccessType access_type, int mmu_idx);
+ #endif
+diff --git a/target/arm/tcg/helper-a64.c b/target/arm/tcg/helper-a64.c
+--- a/target/arm/tcg/helper-a64.c
++++ b/target/arm/tcg/helper-a64.c
+@@ -945,6 +945,11 @@
+          */
+         (void) probe_write(env, vaddr_in, 1, mmu_idx, ra);
+         mem = probe_write(env, vaddr, blocklen, mmu_idx, ra);
++
++        if (mem && tlb_invalidate_code_dcz(env, vaddr, mmu_idx, ra)) {
++            /* Reacquire after invalidation; use normal dirty/watchpoint checks. */
++            mem = probe_write(env, vaddr, blocklen, mmu_idx, ra);
++        }
+ 
+         if (unlikely(!mem)) {
+             /*
