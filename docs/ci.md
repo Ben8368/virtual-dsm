@@ -9,7 +9,7 @@ checkable jobs (repository traffic light / 6/6):
 3. **Synthetic regression tests** — platform, acquisition, guest, image and installer checks without DSM downloads.
 4. **QEMU patch apply** — pristine upstream v8.2.2 clean application of `patches/qemu/8.2.2`.
 5. **Research smoke** — `research/arm64/tests/smoke.sh`.
-6. **Production image build** — native Ubuntu 24.04 amd64 and arm64 Docker builds, then emulator, shared-library, Python import and default x86 argv checks.
+6. **Production image build** — native Ubuntu 24.04 amd64 and arm64 Docker builds, then emulator, shared-library, Python import, default x86 argv and [synthetic DC ZVA](../tests/qemu-dcz/README.md) checks against each image's actual patched QEMU.
 
 Human `🚦 Audit Report` review remains required for product source changes and is
 not replaced by a green CI aggregate.

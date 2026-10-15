@@ -3,7 +3,8 @@
 Historical mechanism record; later acceptance is recorded in
 [production-phase3.md](../production-phase3.md), with current state only in
 [CONTEXT.md](../../../CONTEXT.md). Diagnostic patches and harnesses mentioned
-below remain local research material and are not included in this repository.
+below remain local research material. Generic correctness fixtures have since
+been promoted to [tests/qemu-dcz](../../../tests/qemu-dcz/README.md).
 
 Status at this checkpoint: CODE_PROTECTION_CONFIRMED for repeated NOTDIRTY. The conservative
 full-page invalidation graduated to production
@@ -118,22 +119,18 @@ remain separate open gates.
 
 ## Focused correctness commands
 
-The following historical commands require the local, uncommitted research
-harnesses and sources. They document evidence generation, not runnable
-repository regression commands. Run with Linux cross-GCC and a selected binary. Each QEMU uses TCG multi with
+The maintained correctness suite and its prerequisites are documented in
+[tests/qemu-dcz](../../../tests/qemu-dcz/README.md). Run with Linux cross-GCC
+and a selected production-patched binary. Each QEMU uses TCG multi with
 2 vCPUs. No DSM software, account or watchdog setting is needed.
 
 ```sh
-bash research/arm64/tests/dcz-system.sh /path/to/qemu /path/to/output
-python3 research/arm64/tests/dcz-watchpoint.py /path/to/qemu \
-    /path/to/output/dcz-system.elf /path/to/watchpoint-output
-python3 research/arm64/tests/dcz-dirty.py /path/to/qemu /path/to/migration-output
-DCZ_TEST_COST=1 bash research/arm64/tests/dcz-system.sh /path/to/qemu /path/to/cost-output
+bash tests/qemu-dcz/run.sh /path/to/qemu /path/to/output
 ```
 
 The system test checks 64 different RAM blocks and all surrounding bytes,
 zeroed-code UDF rather than stale execution, unaffected same-page code,
-same-page current execution with ISB, a TB crossing two physical pages,
+same-page current execution with ISB, an AArch64 function spanning two pages and separate TBs,
 permission/translation faults under a real guest MMU, PL011 read-only MMIO
 registers, and 128 multi-vCPU code handoffs while CPU1 also executes unaffected
 code on the invalidated page. The RSP test installs a write watchpoint on the
@@ -146,7 +143,8 @@ second QEMU restores the stream. Its entire 16 MiB is then dumped and checked
 for zero. This exercises active migration dirty tracking and catches loss of
 writes to already-transmitted RAM, rather than relying on dirty-rate estimates.
 
-Cost mode sweeps 1/8/64/256/512 TBs with five repetitions each. Only two guest
+Historical local cost mode swept 1/8/64/256/512 TBs with five repetitions each. Only two guest
 counter reads surround a complete 64-ZVA clear. It does not time individual
 helpers. These are synthetic measurements, distinct from DSM boot/service
-latency and from watchdog causality.
+latency and from watchdog causality. Cost mode is not part of the maintained
+correctness suite.

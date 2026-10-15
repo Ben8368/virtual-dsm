@@ -44,3 +44,6 @@ jobs:
           docker run --rm --entrypoint python3 virtual-dsm:ci -c 'import dissect.cstruct; import dissect.extfs'
       - name: Verify default production command
         run: bash tests/production-x86-command.sh virtual-dsm:ci
+      - name: Synthetic DC ZVA regression against production QEMU
+        timeout-minutes: 10
+        run: bash tests/qemu-dcz/docker.sh virtual-dsm:ci "${{ runner.temp }}/qemu-dcz"
