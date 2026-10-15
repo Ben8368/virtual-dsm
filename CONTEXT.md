@@ -1,8 +1,8 @@
 # 当前状态
 
 > **最后确认：** 2026-10-15
-> **阶段：** Phase 3 / F4
-> **产品代码：** 生产 QEMU 8.2.2 补丁系列与 ARM `rtd1619b` 实验路径；严格 F5 未完成。
+> **阶段：** Phase 4A / K0；Phase 3 F5 与 Watchdog L5 保持通过
+> **产品代码：** 生产 QEMU 8.2.2 补丁系列与 ARM `rtd1619b` 实验路径；严格 F5 已通过。
 
 ## 当前决策
 
@@ -13,19 +13,20 @@
 
 ## 近期优先级
 
-1. 恢复或轮换配置态 clone 的 disposable 管理员会话，完成严格 F5。
-2. 完成 Phase 4 准备：原生 ARM64-host KVM 验证与生命周期硬化。
-3. 保持治理文档与 CI 六项红绿灯一致，避免事实源漂移。
+1. 获取真实 ARM64 Linux / KVM 主机，按 [Phase 4A 协议](research/arm64/production-phase4a.md) 开始配置态验证。
+2. 完成生命周期硬化与原生 amd64/arm64 容器构建验证。
+3. 完成 release-readiness 检查，保持实验性 ARM 发布边界。
 
 ## 当前阻断与风险
 
-- F5 阻断于 DSM Auth（API 499）；详见 [RISK-001](docs/RISK_REGISTER.md#risk-001)。
+- Phase 4A 预检只有 x86_64 WSL；没有可用 ARM64 目标，分类 K0，见 [RISK-002](docs/RISK_REGISTER.md)。
 - ARM64 KVM 与 Surveillance Station 仍属未验证硬件/包路径。
 
 ## 最近验证
 
+- 2026-10-15：[Phase 4A 环境预检](research/arm64/production-phase4a.md) 确认 amd64 AArch64 QEMU 仅支持 TCG；显式 KVM 被拒绝。
 - 2026-10-13：Phase 3 配置态持久化与管理面验收记录见 [production-phase3.md](research/arm64/production-phase3.md)。
-- 2026-10-15：文档治理与六项 CI 门禁落地；检查入口见 [GOVERNANCE.md](docs/GOVERNANCE.md)。
+- 2026-10-15：三次冷启动、两次 UI 干净关机、两轮 30 guest minutes 与账号清理通过，见 [严格 F5 证据](research/arm64/production-phase3.md#strict-f5-completed-acceptance-evidence--2026-10-15)。
 
 ## 按需入口
 

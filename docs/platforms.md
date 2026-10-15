@@ -86,6 +86,12 @@ KVM is attempted only when requested, host and guest architectures match,
 `/dev/kvm` is accessible, and the selected QEMU can successfully initialize a
 paused virt/GICv3 machine with `-accel kvm -cpu host`. A failed probe falls back
 to TCG. ARM64 KVM runtime still requires separate hardware validation.
+An inaccessible device also retains TCG; the selection branch currently emits
+no specific downgrade warning. Phase 4A recommends retaining this fallback
+contract and adding an actionable warning in a separately tested source change.
+See the [native-host validation protocol and evidence](../research/arm64/production-phase4a.md).
+A successful initialization probe alone does not establish that stock DSM can
+boot with the host CPU feature exposure.
 
 The stock drivers use the production patches' MMIO 16550 at `0x0b000000`,
 `realtek,ahci-sata` sysbus AHCI, and `generic-xhci` sysbus XHCI. The system disk
