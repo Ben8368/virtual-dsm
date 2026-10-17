@@ -38,13 +38,27 @@ jobs:
 
   tests:
     name: Synthetic regression tests
-    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            arch: amd64
+          - runner: ubuntu-24.04-arm
+            arch: arm64
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 15
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
+      - name: Confirm runner architecture
+        env:
+          EXPECTED_ARCH: ${{ matrix.arch }}
+        run: |
+          actual=$(dpkg --print-architecture)
+          [[ "$actual" == "$EXPECTED_ARCH" ]]
       - name: Set up Python
         uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
@@ -79,6 +93,10 @@ jobs:
         with:
           persist-credentials: false
       - name: Clean apply production patches to QEMU v8.2.2
+        run: bash tests/qemu-patches.sh
+      - name: Verify pinned GitHub mirror fallback
+        env:
+          QEMU_SOURCE_OVERRIDE: https://github.com/qemu/qemu.git
         run: bash tests/qemu-patches.sh
 
   research-smoke:

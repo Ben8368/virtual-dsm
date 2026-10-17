@@ -6,15 +6,18 @@ checkable jobs (repository traffic light / 6/6):
 
 1. **Docs governance** — `scripts/governance-docs-check.py` and commit-hook regression.
 2. **Lint** — Bash syntax, ShellCheck, Hadolint, JSON/YAML parsing and Actionlint.
-3. **Synthetic regression tests** — platform, acquisition, guest, image and installer checks without DSM downloads.
-4. **QEMU patch apply** — pristine upstream v8.2.2 clean application of `patches/qemu/8.2.2`.
+3. **Synthetic regression tests** — platform, acquisition, guest, image, installer, ARM runtime and proprietary-artifact checks without DSM downloads on native amd64 and arm64 hosted runners.
+4. **QEMU patch apply** — pristine upstream v8.2.2 clean application of `patches/qemu/8.2.2`; the fetch helper tries GitLab first and the GitHub QEMU mirror second, and verifies pinned commit `11aa0b1ff115b86160c4d37e7c37e6a6b13b77ea` and `VERSION` before applying patches.
 5. **Research smoke** — `research/arm64/tests/smoke.sh`.
-6. **Production image build** — native Ubuntu 24.04 amd64 and arm64 Docker builds, then emulator, shared-library, Python import, default x86 argv and [synthetic DC ZVA](../tests/qemu-dcz/README.md) checks against each image's actual patched QEMU.
+6. **Production image build** — native Ubuntu 24.04 amd64 and arm64 Docker builds, then image/ELF architecture, emulator identity/hash, shared-library and Python import checks; the hermetic default x86 command regression uses the accepted snapshot and fake QEMU, while [synthetic DC ZVA](../tests/qemu-dcz/README.md) runs against each image's actual patched QEMU.
 
 Human `🚦 Audit Report` review remains required for product source changes and is
 not replaced by a green CI aggregate.
 
-The synthetic tests do not download or redistribute DSM payloads. CI does not
+The synthetic tests do not download or redistribute DSM payloads. Source
+fetch errors distinguish DNS/source availability from patch-apply and compile
+failures; QEMU's pinned revision does not change as part of mirror fallback.
+CI does not
 prove full DSM boot, ARM KVM compatibility or Surveillance Station acceptance;
 those still require the separately documented official-PAT/hardware checks.
 BuildKit caches are separate per host architecture. New commits cancel obsolete
@@ -22,6 +25,21 @@ CI runs; release runs are serialized and never canceled by newer releases.
 Actions are pinned to commits and refreshed by Dependabot.
 The installer fixture runs with `sudo` on the disposable runner so tar can
 restore numeric ownership and special files without fakeroot interception.
+
+Cold Docker builds require network access to the Dockerfile frontend selected
+by `# syntax=docker/dockerfile:1` on Docker Hub, the `qemux/qemu` and
+`qemux/qemu-host` base images, Debian package repositories, the pinned QEMU
+source (GitLab with identity-checked GitHub upstream mirror fallback), and the
+external `patology.py` source currently referenced from its GitHub `main`
+branch. The syntax directive remains because the Dockerfile uses heredoc RUN
+and `COPY --chmod`; a Docker Hub frontend timeout is build-network
+infrastructure failure, not evidence of an architecture or product defect.
+The mutable patology URL is a release-readiness pinning gap and should be
+resolved only after verifying an authoritative upstream commit and checksum.
+Other mutable inputs include the major-version Dockerfile frontend tag,
+`qemux/qemu` and `qemux/qemu-host` tags, and Debian package repository state;
+review these as build identity inputs before making stronger reproducibility
+claims. The pinned QEMU source commit is already checked before patching.
 
 ## Publishing
 

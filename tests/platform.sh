@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# shellcheck disable=SC2016
+# shellcheck disable=SC2016,SC2329
 set -Eeuo pipefail
 repo=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 cd "$repo"
@@ -40,13 +40,41 @@ date() { if [[ "$*" == '-u +%s' ]]; then printf '1704067200\n'; else command dat
 platformInit
 [[ "$GUEST_ARCH:$PLATFORM:$QEMU_BIN:$MACHINE:$BOOT_MODE" == arm64:arm64:qemu-system-aarch64:virt:direct ]]
 HOST_ARCH=amd64 CPU_CORES=2 RAM_SIZE=2G APP='Virtual DSM' PROCESS=virtual-dsm
-QEMU_DIR=/run/shm QEMU_PID=/run/shm/qemu.pid WEB_PORT=5000 DSM_HTTPS_PORT=5001
+QEMU_DIR=$tmp QEMU_PID=/run/shm/qemu.pid WEB_PORT=5000 DSM_HTTPS_PORT=5001
 KERNEL_IMAGE=/storage/DSM_DS124_72806.kernel INITRD_IMAGE=/storage/DSM_DS124_72806.initrd
 SYSTEM_IMAGE=/storage/DSM_DS124_72806.system.img
 platformConfigureCpu
 [[ "$ARM_ACCEL:$CPU_FLAGS:$KVM" == tcg,thread=multi:max,lpa2=off:N ]]
+warnings=()
+warn() { warnings+=("$*"); }
+platformKvmNodeExists() { [[ "${mock_kvm_node:-yes}" == yes ]]; }
+platformKvmDeviceAccessible() { [[ "${mock_kvm_access:-yes}" == yes ]]; }
+platformKvmProbe() { [[ "${mock_kvm_probe:-yes}" == yes ]]; }
+platformConfigureCpu
+[[ "$ARM_ACCEL:$CPU_FLAGS:$KVM" == tcg,thread=multi:max,lpa2=off:N && ${#warnings[@]} == 0 ]]
+HOST_ARCH=arm64
+mock_kvm_node=yes mock_kvm_access=yes mock_kvm_probe=yes
+platformConfigureCpu
+[[ "$ARM_ACCEL:$CPU_FLAGS:$KVM" == kvm:host:Y && ${#ARM_CPU_ARGS[@]} == 6 ]]
+[[ "${ARM_CPU_ARGS[*]}" == '-accel kvm -cpu host -smp 2' ]]
+for scenario in missing inaccessible init-failure; do
+  warnings=()
+  KVM=N
+  mock_kvm_node=yes mock_kvm_access=yes mock_kvm_probe=yes
+  case "$scenario" in
+    missing) mock_kvm_node=no; expected='/dev/kvm is missing' ;;
+    inaccessible) mock_kvm_access=no; expected='/dev/kvm is not accessible' ;;
+    init-failure) mock_kvm_probe=no; expected='QEMU KVM initialization failed' ;;
+  esac
+  platformConfigureCpu
+  [[ "$ARM_ACCEL:$CPU_FLAGS:$KVM" == tcg,thread=multi:max,lpa2=off:N ]]
+  [[ ${#warnings[@]} == 1 && "${warnings[0]}" == *"$expected"* && "${warnings[0]}" == *'substantially slower'* ]]
+done
+unset mock_kvm_node mock_kvm_access mock_kvm_probe
+HOST_ARCH=amd64
 platformPrepareSystemDisks
 platformConfigureNetwork
+QEMU_DIR=/run/shm
 platformConfigureArguments
 printf '%s\n' "${QEMU_ARGS[@]}" > "$tmp/arm.args"
 diff -u tests/fixtures/rtd1619b.args "$tmp/arm.args"
@@ -71,7 +99,7 @@ platformValidateBinary() { :; }
 if platformValidateArtifacts >"$tmp/missing" 2>&1; then exit 1; fi
 grep -q 'ARM automatic preparation did not produce a complete artifact set' "$tmp/missing"
 # Custom ports use the existing WEB_PORT and USER_PORTS interfaces.
-WEB_PORT=5080 DSM_HTTPS_PORT=5443 USER_PORTS=22,53/udp
+QEMU_DIR=$tmp WEB_PORT=5080 DSM_HTTPS_PORT=5443 USER_PORTS=22,53/udp
 platformNetworkBackend
 [[ "$ARM_NETDEV" == *':5080-10.0.2.15:5000'* && "$ARM_NETDEV" == *':5443-10.0.2.15:5001'* && "$ARM_NETDEV" == *'udp:0.0.0.0:53-10.0.2.15:53' ]]
 # Artifact spaces remain one argv item, without shell evaluation.

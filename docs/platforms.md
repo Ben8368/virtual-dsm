@@ -51,8 +51,11 @@ production patches, rather than extra PCI command-line devices.
 
 ## Phase 2 automatic artifacts
 
-Experimental DS124 / rtd1619b automatically prepares DSM 7.2.2-72806 artifacts
-from the exact official PAT. See [automatic preparation](arm64-auto-install.md)
+Experimental ARM support is limited to Synology DS124 / rtd1619b running DSM
+7.2.2-72806. The accepted official PAT SHA256 is
+`17f48a9a4572c9b3b994921d3fb410d8186e9c4bf02cf9334e37897e5752e1dd`;
+other DSM builds and other Realtek models are unvalidated. Automatic preparation
+requires this exact official PAT. See [automatic preparation](arm64-auto-install.md)
 for supported identity, safety, root construction, generation publication,
 cache/legacy policy. See the [Phase 3 local setup and storage evidence](../research/arm64/production-phase3.md)
 for the official administrator wizard, bundled Storage Manager prerequisite and
@@ -80,18 +83,47 @@ trigger rebuilding. See [ARM runtime state](arm64-runtime-state.md).
 
 ## CPU and hardware policy
 
-DS124 on an amd64 host uses `-accel tcg,thread=multi -cpu max,lpa2=off`.
-The `lpa2=off` requirement is mandatory for this stock 5.10 kernel. On ARM64,
-KVM is attempted only when requested, host and guest architectures match,
-`/dev/kvm` is accessible, and the selected QEMU can successfully initialize a
-paused virt/GICv3 machine with `-accel kvm -cpu host`. A failed probe falls back
-to TCG. ARM64 KVM runtime still requires separate hardware validation.
-An inaccessible device also retains TCG; the selection branch currently emits
-no specific downgrade warning. Phase 4A recommends retaining this fallback
-contract and adding an actionable warning in a separately tested source change.
-See the [native-host validation protocol and evidence](../research/arm64/production-phase4a.md).
-A successful initialization probe alone does not establish that stock DSM can
-boot with the host CPU feature exposure.
+DS124 on an amd64 host uses `-accel tcg,thread=multi -cpu max,lpa2=off`; startup
+is substantially slower than KVM. On ARM64, requested KVM requires matching
+host/guest architecture, accessible `/dev/kvm`, and a successful paused
+virt/GICv3 initialization probe using `-accel kvm -cpu host`. Missing or
+inaccessible KVM, or a failed QEMU probe, falls back to TCG with one actionable
+warning. `KVM=N` explicitly selects TCG without a downgrade warning. The CPU
+policies remain accelerator-specific; `lpa2=off` is not added to KVM.
+
+Accepted KVM evidence is Apple MacBook Air M5 running macOS, Colima Apple VZ,
+ARM64 Ubuntu and nested KVM. It validates that environment only. Bare-metal
+ARM64 Linux and other CPU hosts remain untested. The guest watchdog was not
+changed. QEMU patch 0004 addresses the TCG AArch64 DC ZVA code-protection slow
+path with conservative full-page translated-code invalidation; it does not
+disable or reconfigure the guest watchdog. See the
+[Phase 4A validation and evidence](../research/arm64/production-phase4a.md).
+
+## Storage and lifecycle boundaries
+
+The proven disk is a **DSM-compatible virtual storage layout**, not the
+canonical physical DS124 layout. It has a fixed installed root seed, sparse
+total SATA capacity, and a DSM-created data partition and volume. Only the
+single-disk Basic/Btrfs path is validated; RAID and other disk layouts are
+unvalidated. Existing runtime state is protected from automatic replacement.
+For reinstall, stop the container, retain the old storage directory for
+recovery, and explicitly select a new empty storage location. DSM upgrades
+beyond 7.2.2-72806 are unsupported/unvalidated.
+
+Use DSM's normal UI shutdown before stopping the container. A private QMP
+receipt is clean only when QEMU reports guest `guest-shutdown` and exits 0.
+Container SIGTERM/SIGKILL after a timeout is a bounded host fallback and is
+recorded as unclean. The global Docker healthcheck start period remains 900
+seconds because amd64-to-ARM TCG startup can take several minutes; shortening
+the global window risks marking a valid TCG boot unhealthy.
+
+## Validated network path
+
+The DS124 guest uses sysbus XHCI, USB CDC ECM, QEMU user-mode NAT and `hostfwd`
+for management ports. The guest is not transparently present on the host's
+layer-2 LAN. Discovery protocols and camera/device discovery may not work as
+they do on a bridged NAS. TAP and bridge networking are not the default and
+have not been validated.
 
 The stock drivers use the production patches' MMIO 16550 at `0x0b000000`,
 `realtek,ahci-sata` sysbus AHCI, and `generic-xhci` sysbus XHCI. The system disk

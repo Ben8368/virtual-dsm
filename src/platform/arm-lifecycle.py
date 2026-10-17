@@ -8,8 +8,8 @@ import sys
 import time
 
 
-def watch(address, output):
-    deadline = time.monotonic() + 30
+def watch(address, output, timeout_seconds=30):
+    deadline = time.monotonic() + timeout_seconds
     while True:
         sock = socket.socket(socket.AF_UNIX)
         try:
@@ -57,7 +57,7 @@ def record(output, signal, exit_code):
 
 if __name__ == '__main__':
     if sys.argv[1] == 'watch':
-        watch(sys.argv[2], Path(sys.argv[3]))
+        watch(sys.argv[2], Path(sys.argv[3]), float(sys.argv[4]) if len(sys.argv) > 4 else 30)
     elif sys.argv[1] == 'record':
         record(Path(sys.argv[2]), sys.argv[3], sys.argv[4])
     else:

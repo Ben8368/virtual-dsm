@@ -63,14 +63,28 @@ platformKvmProbe() {
   printf 'quit\n' | timeout 10 "$QEMU_BIN" -machine virt,gic-version=3 -accel kvm     -cpu host -smp 1 -m 128 -nodefaults -display none -serial none     -monitor stdio -S >/dev/null 2>&1
 }
 
+platformKvmNodeExists() { [[ -e /dev/kvm ]]; }
+platformKvmDeviceAccessible() { [[ -r /dev/kvm && -w /dev/kvm ]]; }
+
 platformConfigureCpu() {
   ARM_ACCEL='tcg,thread=multi'
   CPU_FLAGS='max,lpa2=off'
-  if [[ "$HOST_ARCH" == arm64 ]] && ! disabled "$ARM_KVM_REQUEST" &&
-     [[ -r /dev/kvm && -w /dev/kvm ]] && platformKvmProbe; then
-    ARM_ACCEL=kvm
-    CPU_FLAGS=host
-    KVM=Y
+  if [[ "$HOST_ARCH" == arm64 ]] && ! disabled "$ARM_KVM_REQUEST"; then
+    local fallback_reason=''
+    if ! platformKvmNodeExists; then
+      fallback_reason='/dev/kvm is missing'
+    elif ! platformKvmDeviceAccessible; then
+      fallback_reason='/dev/kvm is not accessible to the container user'
+    elif ! platformKvmProbe; then
+      fallback_reason='QEMU KVM initialization failed'
+    else
+      ARM_ACCEL=kvm
+      CPU_FLAGS=host
+      KVM=Y
+    fi
+    if [[ -n "$fallback_reason" ]]; then
+      warn "KVM unavailable ($fallback_reason); ARM DSM is running under TCG and may be substantially slower."
+    fi
   fi
   [[ "$CPU_CORES" =~ ^[1-9][0-9]{0,2}$ ]] || { error 'Invalid ARM CPU_CORES (1-999)'; return 64; }
   ARM_CPU_ARGS=(-accel "$ARM_ACCEL" -cpu "$CPU_FLAGS" -smp "$CPU_CORES")

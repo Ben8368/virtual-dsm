@@ -27,6 +27,23 @@ jobs:
           persist-credentials: false
       - name: Set up Buildx
         uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4
+      - name: Record native runner and builder identity
+        env:
+          EXPECTED_ARCH: ${{ matrix.arch }}
+        run: |
+          echo "candidate commit: $(git rev-parse HEAD)"
+          echo "runner uname: $(uname -m)"
+          actual=$(dpkg --print-architecture)
+          echo "runner dpkg architecture: $actual"
+          [[ "$actual" == "$EXPECTED_ARCH" ]]
+          docker_arch=$(docker info --format '{{.Architecture}}')
+          echo "Docker server architecture: $docker_arch"
+          case "$EXPECTED_ARCH:$docker_arch" in
+            amd64:x86_64|amd64:amd64|arm64:aarch64|arm64:arm64) ;;
+            *) echo "Docker server architecture does not match native runner: $EXPECTED_ARCH:$docker_arch" >&2; exit 1 ;;
+          esac
+          docker info --format 'Docker server OS={{.OSType}}'
+          docker buildx inspect --bootstrap
       - name: Build production runtime natively
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
         with:
@@ -38,12 +55,9 @@ jobs:
           cache-to: type=gha,mode=max,scope=image-${{ matrix.arch }}
       - name: Verify emulators, shared libraries and Python dependencies
         run: |
-          docker run --rm --entrypoint qemu-system-aarch64 virtual-dsm:ci --version
-          docker run --rm --entrypoint qemu-system-x86_64 virtual-dsm:ci --version
-          docker run --rm --entrypoint bash virtual-dsm:ci -ec 'if ldd /usr/local/bin/qemu-system-aarch64 | grep -q "not found"; then exit 1; fi'
-          docker run --rm --entrypoint python3 virtual-dsm:ci -c 'import dissect.cstruct; import dissect.extfs'
+          bash tests/image-architecture.sh virtual-dsm:ci "${{ matrix.arch }}"
       - name: Verify default production command
-        run: bash tests/production-x86-command.sh virtual-dsm:ci
+        run: bash tests/production-x86-command.sh
       - name: Synthetic DC ZVA regression against production QEMU
         timeout-minutes: 10
         run: bash tests/qemu-dcz/docker.sh virtual-dsm:ci "${{ runner.temp }}/qemu-dcz"

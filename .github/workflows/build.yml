@@ -85,12 +85,14 @@ jobs:
         env:
           IMAGE: ${{ needs.version.outputs.image }}
           DIGEST: ${{ steps.build.outputs.digest }}
+          ARCH: ${{ matrix.arch }}
         run: |
           docker pull "$IMAGE@$DIGEST"
           docker tag "$IMAGE@$DIGEST" virtual-dsm:release
+          bash tests/image-architecture.sh virtual-dsm:release "$ARCH"
           docker run --rm --entrypoint qemu-system-aarch64 virtual-dsm:release --version
           docker run --rm --entrypoint qemu-system-x86_64 virtual-dsm:release --version
-          bash tests/production-x86-command.sh virtual-dsm:release
+          bash tests/production-x86-command.sh
       - name: Export digest
         env:
           DIGEST: ${{ steps.build.outputs.digest }}

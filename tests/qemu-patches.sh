@@ -8,10 +8,14 @@ if [[ $# == 1 ]]; then
   [[ $(git -c safe.directory="$1" -C "$1" rev-parse HEAD) == 11aa0b1ff115b86160c4d37e7c37e6a6b13b77ea ]]
   git -c safe.directory="$1" -C "$1" archive HEAD | tar -x -C "$tmp"
 else
-  git clone --depth 1 --branch v8.2.2 https://gitlab.com/qemu-project/qemu.git "$tmp"
+  rmdir "$tmp"
+  "$repo/scripts/fetch-qemu-source.sh" "$tmp"
 fi
 for patch in "$repo"/patches/qemu/8.2.2/*.patch; do
-  (cd "$tmp"; git apply --check "$patch"; git apply "$patch")
+  if ! (cd "$tmp"; git apply --check "$patch" && git apply "$patch"); then
+    echo "QEMU_PATCH_APPLY_FAILED: $patch did not apply to pinned QEMU v8.2.2." >&2
+    exit 65
+  fi
 done
 grep -q create_dsm_uart "$tmp/hw/arm/virt.c"
 grep -q create_dsm_ahci "$tmp/hw/arm/virt.c"

@@ -13,6 +13,7 @@ RUN apt-get update && apt-get --no-install-recommends -y install \
 COPY patches/qemu/8.2.2/ /patches/
 COPY --chmod=755 scripts/build-arm-qemu.sh /build-arm-qemu.sh
 COPY --chmod=755 scripts/apply-qemu-patches.sh /apply-qemu-patches.sh
+COPY --chmod=755 scripts/fetch-qemu-source.sh /fetch-qemu-source.sh
 RUN /build-arm-qemu.sh
 
 FROM base AS runtime

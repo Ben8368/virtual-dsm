@@ -43,19 +43,29 @@ The image targets both `linux/amd64` and `linux/arm64` container hosts.
 `DSM_PLATFORM=virtualdsm` remains the stable default x86 VirtualDSM guest;
 on an ARM64 host that guest uses much slower QEMU TCG.
 
-`DSM_PLATFORM=rtd1619b` adds **experimental DS124 / rtd1619b ARM64 guest support**.
-Automatic preparation from the exact official DS124 DSM 7.2.2-72806 PAT is
-supported. Mutable runtime disks are preserved, and the official local setup
-and single-disk Basic/Btrfs path have demonstrated persistent configuration and
-data through two clean restart cycles. New seeds stage the PAT's bundled packages
-and install Storage Manager through the normal package CLI. Existing roots need manual installation
-from the same PAT; this is a DSM-compatible virtual layout with partially unused
-capacity. ARM support remains experimental; production stability and lifecycle
-evidence is recorded in the Phase 3 acceptance notes below. An x86_64 host uses slow TCG with
-`max,lpa2=off`; an ARM64 host can select KVM only after a successful host/guest
-compatibility probe. ARM64 KVM runtime still needs hardware validation.
-See [platform configuration and automatic DS124 preparation](docs/platforms.md)
-and [Phase 3 persistence evidence](research/arm64/production-phase3.md).
+`DSM_PLATFORM=rtd1619b` adds **experimental ARM64 support for Synology DS124 /
+rtd1619b running DSM 7.2.2-72806 only**. It requires the exact official PAT
+(SHA256 `17f48a9a4572c9b3b994921d3fb410d8186e9c4bf02cf9334e37897e5752e1dd`);
+other DSM builds and Realtek models are unvalidated. ARM64 with usable KVM uses
+`-cpu host`; amd64-to-ARM uses TCG and can start substantially more slowly. On
+ARM64, missing or unusable KVM falls back to TCG with a warning. The current
+hardware evidence is MacBook Air M5 / macOS / Colima Apple VZ / ARM64 Ubuntu /
+nested KVM; bare-metal ARM64 Linux remains untested.
+
+The validated disk is a **DSM-compatible virtual storage layout**, with a
+fixed root seed and sparse SATA capacity. DSM creates the data partition and
+volume; only one disk with Basic/Btrfs has been verified. Existing runtime disks
+are protected from automatic replacement. Reinstall by retaining the old
+storage directory and explicitly selecting a new empty location. DSM upgrades
+beyond 7.2.2-72806 are unsupported/unvalidated. The guest uses USB CDC ECM over
+QEMU user-mode NAT and host port forwarding; it has no transparent layer-2
+presence, and discovery protocols/devices are not guaranteed. Shut DSM down
+from its UI before stopping the container; timeout termination is recorded as
+unclean.
+
+The TCG watchdog fix is QEMU patch 0004; guest watchdog settings remain
+unchanged. See [platform setup and limits](docs/platforms.md), [automatic PAT
+preparation](docs/arm64-auto-install.md), and [Phase 4A acceptance evidence](research/arm64/production-phase4a.md).
 
 ## Features ✨
 
